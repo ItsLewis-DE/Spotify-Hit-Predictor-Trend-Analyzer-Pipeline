@@ -1,29 +1,49 @@
+import os
 import requests
 
-ACCESS_TOKEN = 'BQB2bEhPKfReypo7tHizISI-Iquc8TJrw2O6ZXZxuNYG1JI9G2jMaDECUJFaG3eTT5IeDDbp5LZA_4nXf9KO3heKszI2hvKEP0sWJNKv5oKJUBU0ZV5COK60PEYqaRDKzbYDG5664Fo' 
+# Lấy credentials từ biến môi trường (KHÔNG hardcode trong code!)
+CLIENT_ID = os.environ.get('SPOTIFY_CLIENT_ID')
+CLIENT_SECRET = os.environ.get('SPOTIFY_CLIENT_SECRET')
 
+if not CLIENT_ID or not CLIENT_SECRET:
+    print("❌ Thiếu SPOTIFY_CLIENT_ID hoặc SPOTIFY_CLIENT_SECRET trong biến môi trường!")
+    print("   Hãy cấu hình trong file .env")
+    exit(1)
+
+# 1. Lấy Access Token
+auth_url = 'https://accounts.spotify.com/api/token'
+auth_response = requests.post(auth_url, {
+    'grant_type': 'client_credentials',
+    'client_id': CLIENT_ID,
+    'client_secret': CLIENT_SECRET,
+})
+
+if auth_response.status_code != 200:
+    print("❌ Không thể lấy Access Token!")
+    print(auth_response.json())
+    exit(1)
+
+access_token = auth_response.json()['access_token']
+print("🎉 Lấy Access Token thành công!")
+
+# 2. Tìm kiếm tracks trên Spotify
 url = 'https://api.spotify.com/v1/search'
 
 headers = {
-    'Authorization': f'Bearer {ACCESS_TOKEN}'
+    'Authorization': f'Bearer {access_token}'
 }
 
 params = {
     'q': 'remaster year:2024-2025',
     'type': 'track',
-    'limit': 5,      # Lấy 5 kết quả
-    'offset': 0      # Bắt đầu từ vị trí số 0
+    'limit': 5,
+    'offset': 0
 }
 
-# 4. Gửi yêu cầu GET đến máy chủ Spotify
 response = requests.get(url, headers=headers, params=params)
 
-# 5. Kiểm tra và xử lý kết quả trả về
 if response.status_code == 200:
     data = response.json()
     print(data)
-        
 else:
-    # In ra thông báo lỗi nếu Token hết hạn hoặc sai cú pháp
-    print(f"❌ Có lỗi xảy ra. Mã lỗi: {response.status_code}")
     print(response.json())
