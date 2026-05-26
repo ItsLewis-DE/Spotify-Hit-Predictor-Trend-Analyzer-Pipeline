@@ -4,6 +4,7 @@ import os,logging
 from dotenv import load_dotenv
 import time
 import boto3
+import string 
 load_dotenv()
 
 logging.basicConfig(
@@ -36,42 +37,53 @@ def get_access_token():
 
 ACCESS_TOKEN = get_access_token()
 HEADERS = {'Authorization':f"Bearer {ACCESS_TOKEN}"}
+two_letters =[a+b for a in string.ascii_lowercase for b in string.ascii_lowercase]
+numbers = [str(i) for i in range(10)]
+all_keywords = two_letters + numbers
+
 def search_batch_using_next():
     logger = logging.getLogger(__name__)
     url = f"{BASE_URL}/search"
-    years = [2025,2026]
+    years = [2026]
     for year in years:
         logger.info(f"Extracting data year: {year}")
-        temp_url = url
-        params = {
-        'q' : f'year: {year}',
-        'type': 'track',
-        'limit':10,
-        'offset':0,
-        'market':'VN'
-        }
-        batch_num =1
-        while temp_url:
-            logger.info(f"Page: {batch_num}")
-            if batch_num==1:
-                response = requests.get(temp_url,headers = HEADERS, params = params,stream=True)
-                response.raise_for_status()
-                s3_client.upload_filepbj(
-                    Fileobj=response.raw,
-                    Bucket='spotify-stream-bucket',
-                    Key=s3_object_name
-                )
-            else:
-                # The 'next' url from Spotify already includes all the necessary query parameters.
-                response = requests.get(temp_url, headers=HEADERS)
-                response.raise_for_status()
-            data = response.json()    
-            # 'next' URL is inside the 'tracks' paging object.
-            temp_url = data.get('tracks', {}).get('next')
-            batch_num += 1
-            with open('ouput.json','a') as f:
-                json.dump(data,f,indent=2)
-            time.sleep(1)
+        for key in all_keywords:
+            temp_url = url
+            params = {
+            'q' : f'{key} year: {year}',
+            'type': 'track',
+            'limit':10,
+            'offset':0,
+            'market':'VN'
+            }
+            batch_num =1
+            while temp_url:
+                logger.info(f"Page: {batch_num}")
+                try:
+                    if batch_num==1:
+                        response = requests.get(temp_url,headers = HEADERS, params = params)
+                        # s3_client.upload_filepbj(
+                        #     Fileobj=response.raw,
+                        #     Bucket='spotify-stream-bucket',
+                        #     Key=s3_object_name
+                        # )
+                    else:
+                        # The 'next' url from Spotify already includes all the necessary query parameters.
+                        response = requests.get(temp_url, headers=HEADERS)
+                    if response.status_code == 429:
+                        retry_after = int(response.headers.get("Retry-After",5))
+                        logger.warning(f"Rate limit!! You have to wait {retry_after}s")
+                        time.sleep(retry_after)
+                        continue
+                    data = response.json()    
+                    # 'next' URL is inside the 'tracks' paging object.
+                    temp_url = data.get('tracks', {}).get('next')
+                    batch_num += 1
+                    with open('ouput.json','a') as f:
+                        json.dump(data,f,indent=2)
+                except requests.exceptions.RequestException as e:
+                    logger.error(f'There is an error: {e}')
+                time.sleep(1)
         logger.info("Extracting data successfully!!")
         
 search_batch_using_next()
