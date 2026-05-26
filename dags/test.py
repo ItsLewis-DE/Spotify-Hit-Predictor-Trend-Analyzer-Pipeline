@@ -47,3 +47,5 @@ if response.status_code == 200:
     print(data)
 else:
     print(response.json())
+
+    absd

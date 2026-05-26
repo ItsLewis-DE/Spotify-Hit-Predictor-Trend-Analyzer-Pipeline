@@ -1,7 +1,3 @@
-# Hướng dẫn đóng góp (Contributing Guide)
-
-Cảm ơn bạn đã quan tâm đến dự án! Dưới đây là hướng dẫn để đóng góp hiệu quả.
-
 ## 🔀 Quy trình làm việc (Git Workflow)
 
 Dự án sử dụng **Git Flow** đơn giản:
