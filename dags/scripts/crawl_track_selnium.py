@@ -23,6 +23,7 @@ import argparse
 import glob
 from datetime import datetime, timedelta
 import shutil
+from pathlib import Path
 
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 sys.stderr.reconfigure(encoding="utf-8", errors="replace")
@@ -40,7 +41,7 @@ except ImportError:
 
 
 # --- Cau hinh ---
-SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+SCRIPT_DIR = Path(__file__).resolve().parent.parent.parent
 BASE_DOWNLOAD_DIR = os.path.join(SCRIPT_DIR, "data")
 CHROME_PROFILE_DIR = os.path.join(SCRIPT_DIR, "chrome_profile")
 BASE_URL = "https://charts.spotify.com/charts/view/regional-vn-weekly"
