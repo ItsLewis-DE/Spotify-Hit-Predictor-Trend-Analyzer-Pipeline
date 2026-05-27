@@ -107,12 +107,20 @@ def setup_driver(download_dir, headless=False, use_profile=True):
 
 
 def is_logged_in(driver):
-    """Kiem tra da dang nhap chua bang URL hien tai."""
+    """Kiem tra da dang nhap chua bang URL hien tai va UI."""
     current_url = driver.current_url
-    return "charts.spotify.com" in current_url and "login" not in current_url and "accounts.spotify.com" not in current_url
+    if "login" in current_url or "accounts.spotify.com" in current_url:
+        return False
+    if current_url.endswith("/home") or current_url.strip("/") == "https://charts.spotify.com":
+        return False
+    try:
+        driver.find_element(By.CSS_SELECTOR, '[data-testid="charts-login"]')
+        return False
+    except:
+        return True
 
 
-def handle_login(driver, target_url, force_login=False):
+def handle_login(driver, target_url, force_login=False, is_headless=False):
     """
     Xu ly dang nhap.
     Neu da luu session tu truoc -> tu dong dang nhap.
@@ -134,7 +142,14 @@ def handle_login(driver, target_url, force_login=False):
     if force_login:
         print("[*] CHE DO DANG NHAP - Hay dang nhap trong Chrome")
     else:
-        print("[!] Session het han - Hay dang nhap lai trong Chrome")
+        print("[!] Session het han hoac khong duoc nhan dien - Hay dang nhap lai trong Chrome")
+        
+    if is_headless and not force_login:
+        print("[FAIL] Khong the dang nhap trong che do Headless (an).")
+        print("       Vui long chay script voi tham so --login (khong dung --headless) de dang nhap truoc.")
+        print("=" * 60)
+        return False
+
     print(f"[*] Ban co {LOGIN_WAIT_TIMEOUT} giay.")
     print("[*] Sau khi dang nhap, session se duoc luu lai.")
     print("[*] Cac lan chay sau se KHONG can dang nhap nua!")
@@ -252,7 +267,7 @@ def download_chart(url, download_dir, headless=False, force_login=False):
         driver = setup_driver(download_dir=download_dir, headless=headless, use_profile=True)
 
         # Dang nhap
-        if not handle_login(driver, url, force_login=force_login):
+        if not handle_login(driver, url, force_login=force_login, is_headless=headless):
             return None
 
         # Chuyen den trang chart dung
@@ -281,7 +296,13 @@ def download_chart(url, download_dir, headless=False, force_login=False):
         if not find_and_click_download(driver):
             screenshot = os.path.join(download_dir, "debug_screenshot.png")
             driver.save_screenshot(screenshot)
+            
+            page_source_file = os.path.join(download_dir, "debug_page_source.html")
+            with open(page_source_file, "w", encoding="utf-8") as f:
+                f.write(driver.page_source)
+                
             print(f"[DEBUG] Screenshot: {screenshot}")
+            print(f"[DEBUG] Page source: {page_source_file}")
             return None
 
         # Cho download xong, move tu BASE_DOWNLOAD_DIR sang download_dir
