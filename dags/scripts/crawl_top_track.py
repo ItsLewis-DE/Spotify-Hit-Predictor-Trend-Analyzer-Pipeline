@@ -39,7 +39,7 @@ def crawl_top_track():
         if track:
             data.append(track)
     date = pendulum.now(tz='Asia/Ho_Chi_Minh').strftime('%Y_%m_%d')
-    path_to_save = f'data/top_track/top_tract_{date}.json'
+    path_to_save = f'data/top_track/top_track_{date}.json'
     Path(path_to_save).parent.mkdir(parents=True,exist_ok=True)
     with open(path_to_save,'w') as f:
         json.dump(data,f,indent=2)
