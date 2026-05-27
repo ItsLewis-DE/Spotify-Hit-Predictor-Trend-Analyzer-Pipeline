@@ -26,6 +26,9 @@ x-airflow-common: &airflow-common
     # Performance tuning
     AIRFLOW__SCHEDULER__MIN_FILE_PROCESS_INTERVAL: 30
     AIRFLOW__SCHEDULER__DAG_DIR_LIST_INTERVAL: 60
+    # Spotify API
+    SPOTIFY_CLIENT_ID: ${SPOTIFY_CLIENT_ID:-}
+    SPOTIFY_CLIENT_SECRET: ${SPOTIFY_CLIENT_SECRET:-}
     # TODO(security): In production, configure AIRFLOW__WEBSERVER__BASE_URL with HTTPS
     # TODO(security): In production, use a secrets backend (e.g., AWS Secrets Manager, HashiCorp Vault)
   volumes:

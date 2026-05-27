@@ -25,6 +25,8 @@ build/
 .venv/
 venv/
 env/
+.ipynb_checkpoints/
+spotify_search_api/
 
 # =============================================================================
 # IDE & Editors
