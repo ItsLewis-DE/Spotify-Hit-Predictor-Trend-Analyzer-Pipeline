@@ -43,25 +43,18 @@ all_keywords = two_letters + numbers
 
 def search_batch_using_next():
     logger = logging.getLogger(__name__)
-    url = f"{BASE_URL}/search"
+    url = f"{BASE_URL}/audio-features"
     years = [2026]
     for year in years:
         logger.info(f"Extracting data year: {year}")
         for key in all_keywords:
-            temp_url = url
-            params = {
-            'q' : f'{key} year: {year}',
-            'type': 'track',
-            'limit':10,
-            'offset':0,
-            'market':'VN'
-            }
+            temp_url = f'{url}/11dFghVXANMlKmJXsNCbNl'
             batch_num =1
             while temp_url:
                 logger.info(f"Page: {batch_num}")
                 try:
                     if batch_num==1:
-                        response = requests.get(temp_url,headers = HEADERS, params = params)
+                        response = requests.get(temp_url,headers = HEADERS)
                         # s3_client.upload_filepbj(
                         #     Fileobj=response.raw,
                         #     Bucket='spotify-stream-bucket',
