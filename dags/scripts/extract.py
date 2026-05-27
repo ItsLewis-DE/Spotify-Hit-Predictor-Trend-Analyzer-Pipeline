@@ -4,7 +4,8 @@ import os,logging
 from dotenv import load_dotenv
 import time
 import boto3
-import string 
+import string
+from pathlib import Path
 load_dotenv()
 
 logging.basicConfig(

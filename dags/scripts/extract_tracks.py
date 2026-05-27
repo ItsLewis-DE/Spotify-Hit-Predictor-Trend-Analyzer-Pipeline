@@ -97,7 +97,6 @@ def fetch_track_data(
         "album_name": track.get("album", {}).get("name"),
         "release_date": track.get("album", {}).get("release_date"),
         "duration_ms": track.get("duration_ms"),
-        "popularity": track.get("popularity"),
         "explicit": track.get("explicit"),
         "spotify_url": track.get("external_urls", {}).get("spotify"),
     }
