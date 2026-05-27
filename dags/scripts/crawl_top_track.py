@@ -3,7 +3,7 @@ import requests
 import json
 import pendulum
 import logging
-
+from pathlib import Path
 logging.basicConfig(
     level=logging.INFO, # Cho phép hiển thị log từ mức INFO trở lên
     format='%(asctime)s - %(levelname)s - %(message)s' # Định dạng cho dòng log dễ nhìn hơn
@@ -39,7 +39,8 @@ def crawl_top_track():
         if track:
             data.append(track)
     date = pendulum.now(tz='Asia/Ho_Chi_Minh').strftime('%Y_%m_%d')
-    path_to_save = f'data/top_tract_{date}.json'
+    path_to_save = f'data/top_track/top_tract_{date}.json'
+    Path(path_to_save).parent.mkdir(parents=True,exist_ok=True)
     with open(path_to_save,'w') as f:
         json.dump(data,f,indent=2)
     logger.info(f"Data saved to {path_to_save} successfully!")
