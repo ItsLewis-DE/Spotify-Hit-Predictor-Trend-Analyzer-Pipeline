@@ -12,4 +12,6 @@ dependencies = [
     "pathlib>=1.0.1",
     "pendulum>=3.2.0",
     "requests>=2.34.2",
+    "selenium>=4.44.0",
+    "webdriver-manager>=4.1.1",
 ]
