@@ -186,6 +186,13 @@ def fetch_artists(artist_ids, headers):
     return artists_by_id
 
 
+def remove_artist_images(artist):
+    if not artist:
+        return None
+
+    return {key: value for key, value in artist.items() if key != "images"}
+
+
 def build_output_file(input_file, output_dir):
     chart_date = get_chart_date(Path(input_file))
     if not chart_date:
@@ -213,7 +220,10 @@ def extract_artists(input_file, output_dir=DEFAULT_OUTPUT_DIR, market="VN"):
     artist_rows, artist_ids = get_artist_rows(rows, tracks_by_id)
     artists_by_id = fetch_artists(artist_ids, headers)
 
-    fetched_at = datetime.now().isoformat(timespec="seconds")
+    fetched_at = get_chart_date(Path(input_file))
+    if not fetched_at:
+        raise ValueError(f"No chart date found in input CSV file name: {input_file}")
+
     records = []
 
     for row in artist_rows:
@@ -221,7 +231,7 @@ def extract_artists(input_file, output_dir=DEFAULT_OUTPUT_DIR, market="VN"):
         row["source_file"] = Path(input_file).name
         row["fetched_at"] = fetched_at
         row["spotify_artist_api_found"] = artist_id in artists_by_id
-        row["spotify_artist"] = artists_by_id.get(artist_id)
+        row["spotify_artist"] = remove_artist_images(artists_by_id.get(artist_id))
         records.append(row)
 
     output_file = build_output_file(input_file, output_dir)
