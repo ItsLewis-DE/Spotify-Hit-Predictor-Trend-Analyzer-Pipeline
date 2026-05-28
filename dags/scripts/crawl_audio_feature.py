@@ -45,13 +45,15 @@ def get_api_audio_feature(spotify_id_string: str,timezone: int)-> pd.DataFrame:
     BASE_URL = f'https://spotify-extended-audio-features-api.p.rapidapi.com/v1/audio-features'
     params = {'ids': spotify_id_string}
     if timezone ==1:
-        "X-RapidAPI-Key" = os.getenv('X-RapidAPI-Key-1')
+        X-RapidAPI-Key = os.getenv('X-RapidAPI-Key-1')
     elif timezone==2:
-        "X-RapidAPI-Key" = os.getenv('X-RapidAPI-Key-2')
+        X-RapidAPI-Key = os.getenv('X-RapidAPI-Key-2')
+    elif timezone==3:
+        X-RapidAPI-Key = os.getenv('X-RapidAPI-Key-3')
     else:
-        "X-RapidAPI-Key" = os.getenv('X-RapidAPI-Key-3')
+        X-RapidAPI-Key = os.getenv('X-RapidAPI-Key-4')
     headers = {
-        "X-RapidAPI-Key": '890ef3de4dmsh514efe84ee4b162p1e8d4cjsn4edbcaa14778', 
+        "X-RapidAPI-Key": X-RapidAPI-Key, 
         "X-RapidAPI-Host": "spotify-extended-audio-features-api.p.rapidapi.com" 
     }
 
@@ -69,12 +71,13 @@ def get_audio_feature(input_file: Path,output_dir: Path):
     df_rank.rename(columns= {'uri':'spotify_id'},inplace=True)
     spotify_id_string = df_rank['spotify_id'].to_list()
     list_df = []
-    for i in range(0,50,5):
-        id_string = ','.join(spotify_id_string[i : i +5])
-        df = get_api_audio_feature(id_string)
-        if df is not None:
-            list_df.append(df)
-        time.sleep(1)
+    for timezone in [1,2,3,4]:
+        for i in range(0,50,5):
+            id_string = ','.join(spotify_id_string[i : i +5])
+            df = get_api_audio_feature(id_string,timezone)
+            if df is not None:
+                list_df.append(df)
+            time.sleep(1)
     df_audio_feature = pd.concat(list_df,ignore_index =True)
     df_merge = pd.merge(df_rank,df_audio_feature,left_on = 'spotify_id',right_on = 'id')
     date = '-'.join(input_file.stem.split('-')[3:])
