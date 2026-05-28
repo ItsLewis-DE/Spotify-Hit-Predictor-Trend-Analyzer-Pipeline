@@ -32,7 +32,7 @@ def read_newest_file(dirpath,extension):
         return None
     newest_file = max(
         files,
-        key = lambda file : file.stat().st_mtime
+        key = lambda file : (file.stat().st_mtime,file.name)
     )
     return newest_file
  

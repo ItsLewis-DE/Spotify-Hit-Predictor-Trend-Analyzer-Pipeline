@@ -41,9 +41,15 @@ def get_access_token() ->str:
     response.raise_for_status()
     return response.json()['access_token']
 
-def get_api_audio_feature(spotify_id_string: str)-> pd.DataFrame:
+def get_api_audio_feature(spotify_id_string: str,timezone: int)-> pd.DataFrame:
     BASE_URL = f'https://spotify-extended-audio-features-api.p.rapidapi.com/v1/audio-features'
     params = {'ids': spotify_id_string}
+    if timezone ==1:
+        "X-RapidAPI-Key" = os.getenv('X-RapidAPI-Key-1')
+    elif timezone==2:
+        "X-RapidAPI-Key" = os.getenv('X-RapidAPI-Key-2')
+    else:
+        "X-RapidAPI-Key" = os.getenv('X-RapidAPI-Key-3')
     headers = {
         "X-RapidAPI-Key": '890ef3de4dmsh514efe84ee4b162p1e8d4cjsn4edbcaa14778', 
         "X-RapidAPI-Host": "spotify-extended-audio-features-api.p.rapidapi.com" 
@@ -72,6 +78,7 @@ def get_audio_feature(input_file: Path,output_dir: Path):
     df_audio_feature = pd.concat(list_df,ignore_index =True)
     df_merge = pd.merge(df_rank,df_audio_feature,left_on = 'spotify_id',right_on = 'id')
     date = '-'.join(input_file.stem.split('-')[3:])
+    df_merge['fetched_at'] = pd.to_datetime(date)
     output_dir.mkdir(parents=True,exist_ok = True)
     df_merge.to_json(f'{output_dir}/feature-{date}.json',orient='records',lines=True,force_ascii=False)
 
