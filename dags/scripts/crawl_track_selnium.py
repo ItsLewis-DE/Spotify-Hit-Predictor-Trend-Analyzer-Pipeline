@@ -22,7 +22,6 @@ import time
 import argparse
 import glob
 from datetime import datetime, timedelta
-import shutil
 from pathlib import Path
 
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
@@ -42,7 +41,7 @@ except ImportError:
 
 # --- Cau hinh ---
 SCRIPT_DIR = Path(__file__).resolve().parent.parent.parent
-BASE_DOWNLOAD_DIR = os.path.join(SCRIPT_DIR, "data")
+BASE_DOWNLOAD_DIR = os.path.join(SCRIPT_DIR, "data", "top_track")
 CHROME_PROFILE_DIR = os.path.join(SCRIPT_DIR, "chrome_profile")
 BASE_URL = "https://charts.spotify.com/charts/view/regional-vn-weekly"
 LOGIN_WAIT_TIMEOUT = 180
@@ -231,25 +230,17 @@ def find_and_click_download(driver):
     return False
 
 
-def wait_for_download(existing_files, base_dir, dest_dir, timeout=30):
-    """Cho file CSV moi xuat hien trong thu muc goc va di chuyen sang thu muc dich."""
+def wait_for_download(existing_files, download_dir, timeout=30):
+    """Cho file CSV moi xuat hien trong thu muc download."""
     print("[*] Cho file tai xuong...")
     start_time = time.time()
     while time.time() - start_time < timeout:
-        current = set(glob.glob(os.path.join(base_dir, "*.csv")))
+        current = set(glob.glob(os.path.join(download_dir, "*.csv")))
         new_files = current - existing_files
         if new_files:
             new_file = list(new_files)[0]
             if not os.path.exists(new_file + ".crdownload"):
-                # Di chuyen file sang thu muc dich
-                filename = os.path.basename(new_file)
-                dest_path = os.path.join(dest_dir, filename)
-                try:
-                    shutil.move(new_file, dest_path)
-                    return dest_path
-                except Exception as e:
-                    print(f"Loi khi di chuyen file: {e}")
-                    return new_file
+                return new_file
         time.sleep(1)
     
     return None
@@ -261,7 +252,7 @@ def download_chart(url, download_dir, headless=False, force_login=False):
     try:
         print("=" * 60)
         print(f"  URL:      {url}")
-        print(f"  Download: {download_dir}")
+        print(f"  Download: {BASE_DOWNLOAD_DIR}")
         print("=" * 60)
 
         driver = setup_driver(download_dir=download_dir, headless=headless, use_profile=True)
@@ -294,10 +285,10 @@ def download_chart(url, download_dir, headless=False, force_login=False):
 
         # Click download
         if not find_and_click_download(driver):
-            screenshot = os.path.join(download_dir, "debug_screenshot.png")
+            screenshot = os.path.join(BASE_DOWNLOAD_DIR, "debug_screenshot.png")
             driver.save_screenshot(screenshot)
             
-            page_source_file = os.path.join(download_dir, "debug_page_source.html")
+            page_source_file = os.path.join(BASE_DOWNLOAD_DIR, "debug_page_source.html")
             with open(page_source_file, "w", encoding="utf-8") as f:
                 f.write(driver.page_source)
                 
@@ -305,9 +296,9 @@ def download_chart(url, download_dir, headless=False, force_login=False):
             print(f"[DEBUG] Page source: {page_source_file}")
             return None
 
-        # Cho download xong, move tu BASE_DOWNLOAD_DIR sang download_dir
+        # Cho download xong
         time.sleep(3)
-        downloaded = wait_for_download(existing, BASE_DOWNLOAD_DIR, download_dir, timeout=30)
+        downloaded = wait_for_download(existing, BASE_DOWNLOAD_DIR, timeout=30)
 
         if downloaded:
             size = os.path.getsize(downloaded)
@@ -317,7 +308,7 @@ def download_chart(url, download_dir, headless=False, force_login=False):
             return downloaded
         else:
             print("[!] Khong tim thay file CSV.")
-            screenshot = os.path.join(download_dir, "timeout_screenshot.png")
+            screenshot = os.path.join(BASE_DOWNLOAD_DIR, "timeout_screenshot.png")
             driver.save_screenshot(screenshot)
             print(f"[DEBUG] Timeout screenshot: {screenshot}")
             return None
@@ -391,14 +382,11 @@ def main():
         print(f"\n[*] Dang xu ly tuan {idx+1}/{len(dates_to_download)} (Date: {chart_date})")
         url = f"{BASE_URL}/{chart_date}"
         
-        # Tao folder rieng cho tuan nay
-        week_dir = os.path.join(BASE_DOWNLOAD_DIR, chart_date)
-        
-        result = download_chart(url=url, download_dir=week_dir, headless=headless, force_login=args.login)
+        result = download_chart(url=url, download_dir=BASE_DOWNLOAD_DIR, headless=headless, force_login=args.login)
 
         if result:
             success_count += 1
-            print(f"[OK] Da tai va luu vao: {week_dir}")
+            print(f"[OK] Da tai va luu vao: {BASE_DOWNLOAD_DIR}")
         else:
             print(f"[FAIL] Khong the tai chart ngay {chart_date}")
             
