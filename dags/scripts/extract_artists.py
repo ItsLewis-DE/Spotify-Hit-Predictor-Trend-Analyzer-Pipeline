@@ -4,6 +4,7 @@ import json
 import logging
 import os
 import re
+import time
 from datetime import datetime
 from pathlib import Path
 
@@ -24,7 +25,13 @@ SPOTIFY_ARTISTS_URL = "https://api.spotify.com/v1/artists"
 DEFAULT_INPUT_DIR = Path("data/top_track")
 DEFAULT_OUTPUT_DIR = Path("data/artist")
 FILE_PATTERN = "regional-vn-weekly-*.csv"
-BATCH_SIZE = 50
+DEFAULT_TRACK_REQUEST_DELAY_SECONDS = 2
+DEFAULT_ARTIST_REQUEST_DELAY_SECONDS = 2
+DEFAULT_SPOTIFY_MAX_RETRIES = 5
+DEFAULT_SPOTIFY_MAX_RETRY_WAIT_SECONDS = float(
+    os.getenv("SPOTIFY_MAX_RETRY_WAIT_SECONDS", "300")
+)
+SPOTIFY_RETRYABLE_STATUS_CODES = {429, 500, 502, 503, 504}
 
 logging.basicConfig(
     level=logging.INFO,
@@ -100,28 +107,170 @@ def get_access_token():
         auth=(client_id, client_secret),
         timeout=30,
     )
-    response.raise_for_status()
+    raise_for_spotify_status(response, "getting access token")
     return response.json()["access_token"]
 
 
-def fetch_tracks(track_ids, headers, market="VN"):
-    tracks_by_id = {}
+def get_spotify_error_detail(response):
+    try:
+        payload = response.json()
+    except ValueError:
+        body = response.text.strip()
+        return body[:500] if body else "<empty response body>"
 
-    for start in range(0, len(track_ids), BATCH_SIZE):
-        batch = track_ids[start : start + BATCH_SIZE]
+    error = payload.get("error") if isinstance(payload, dict) else None
+    if isinstance(error, dict):
+        status = error.get("status", response.status_code)
+        message = error.get("message", "")
+        return f"status={status}, message={message}"
+
+    return json.dumps(payload, ensure_ascii=False)[:500]
+
+
+def raise_for_spotify_status(response, context):
+    try:
+        response.raise_for_status()
+    except requests.HTTPError as exc:
+        detail = get_spotify_error_detail(response)
+        raise requests.HTTPError(
+            f"{exc}; Spotify response: {detail}; context: {context}",
+            response=response,
+        ) from exc
+
+
+def get_retry_after_seconds(response, fallback_seconds):
+    retry_after = response.headers.get("Retry-After")
+    if not retry_after:
+        return fallback_seconds
+
+    try:
+        return max(float(retry_after), 0)
+    except ValueError:
+        return fallback_seconds
+
+
+def spotify_get(
+    url,
+    headers,
+    context,
+    params=None,
+    max_retries=DEFAULT_SPOTIFY_MAX_RETRIES,
+    max_retry_wait_seconds=DEFAULT_SPOTIFY_MAX_RETRY_WAIT_SECONDS,
+):
+    last_response = None
+
+    for attempt in range(max_retries + 1):
         response = requests.get(
-            SPOTIFY_TRACKS_URL,
+            url,
             headers=headers,
-            params={"ids": ",".join(batch), "market": market},
+            params=params or {},
             timeout=30,
         )
-        response.raise_for_status()
+        last_response = response
 
-        for track in response.json()["tracks"]:
-            if track:
-                tracks_by_id[track["id"]] = track
+        if (
+            response.status_code not in SPOTIFY_RETRYABLE_STATUS_CODES
+            or attempt == max_retries
+        ):
+            return response
 
-        logger.info("Fetched %s/%s tracks", len(tracks_by_id), len(track_ids))
+        fallback_seconds = min(2**attempt, 60)
+        wait_seconds = get_retry_after_seconds(response, fallback_seconds)
+        if wait_seconds > max_retry_wait_seconds:
+            raise requests.HTTPError(
+                f"Spotify asked to wait {wait_seconds} seconds while {context}, "
+                f"which exceeds SPOTIFY_MAX_RETRY_WAIT_SECONDS="
+                f"{max_retry_wait_seconds}. Retry later or raise that limit. "
+                f"Spotify response: {get_spotify_error_detail(response)}",
+                response=response,
+            )
+
+        logger.warning(
+            "Spotify returned %s while %s. Waiting %s seconds before retry %s/%s. "
+            "Response: %s",
+            response.status_code,
+            context,
+            wait_seconds,
+            attempt + 1,
+            max_retries,
+            get_spotify_error_detail(response),
+        )
+        time.sleep(wait_seconds)
+
+    return last_response
+
+
+def fetch_tracks(
+    track_ids,
+    headers,
+    market="VN",
+    request_delay_seconds=DEFAULT_TRACK_REQUEST_DELAY_SECONDS,
+):
+    tracks_by_id = {}
+    total_tracks = len(track_ids)
+
+    for track_number, track_id in enumerate(
+        track_ids,
+        start=1,
+    ):
+        params = {}
+        if market:
+            params["market"] = market
+
+        response = spotify_get(
+            f"{SPOTIFY_TRACKS_URL}/{track_id}",
+            headers=headers,
+            params=params,
+            context=f"fetching track {track_number}/{total_tracks}",
+        )
+        if response.status_code == 403 and market:
+            logger.warning(
+                "Spotify returned 403 for track %s/%s with market=%s. "
+                "Retrying without market. Response: %s",
+                track_number,
+                total_tracks,
+                market,
+                get_spotify_error_detail(response),
+            )
+            response = spotify_get(
+                f"{SPOTIFY_TRACKS_URL}/{track_id}",
+                headers=headers,
+                context=f"fetching track {track_number}/{total_tracks} without market",
+            )
+
+        if response.status_code == 404:
+            logger.warning(
+                "Spotify track not found: %s (%s/%s). Response: %s",
+                track_id,
+                track_number,
+                total_tracks,
+                get_spotify_error_detail(response),
+            )
+            continue
+
+        raise_for_spotify_status(
+            response,
+            f"fetching track {track_number}/{total_tracks}",
+        )
+
+        track = response.json()
+        if track:
+            tracks_by_id[track["id"]] = track
+
+        logger.info(
+            "Fetched track %s/%s. Total tracks fetched: %s/%s",
+            track_number,
+            total_tracks,
+            len(tracks_by_id),
+            total_tracks,
+        )
+
+        if track_number < total_tracks and request_delay_seconds > 0:
+            logger.info(
+                "Waiting %s seconds before the next track request",
+                request_delay_seconds,
+            )
+            time.sleep(request_delay_seconds)
 
     return tracks_by_id
 
@@ -164,24 +313,57 @@ def get_artist_rows(rows, tracks_by_id):
     return artist_rows, artist_ids
 
 
-def fetch_artists(artist_ids, headers):
+def fetch_artists(
+    artist_ids,
+    headers,
+    request_delay_seconds=DEFAULT_ARTIST_REQUEST_DELAY_SECONDS,
+):
     artists_by_id = {}
+    total_artists = len(artist_ids)
 
-    for start in range(0, len(artist_ids), BATCH_SIZE):
-        batch = artist_ids[start : start + BATCH_SIZE]
-        response = requests.get(
-            SPOTIFY_ARTISTS_URL,
+    for artist_number, artist_id in enumerate(
+        artist_ids,
+        start=1,
+    ):
+        response = spotify_get(
+            f"{SPOTIFY_ARTISTS_URL}/{artist_id}",
             headers=headers,
-            params={"ids": ",".join(batch)},
-            timeout=30,
+            context=f"fetching artist {artist_number}/{total_artists}",
         )
-        response.raise_for_status()
 
-        for artist in response.json()["artists"]:
-            if artist:
-                artists_by_id[artist["id"]] = artist
+        if response.status_code == 404:
+            logger.warning(
+                "Spotify artist not found: %s (%s/%s). Response: %s",
+                artist_id,
+                artist_number,
+                total_artists,
+                get_spotify_error_detail(response),
+            )
+            continue
 
-        logger.info("Fetched %s/%s artists", len(artists_by_id), len(artist_ids))
+        raise_for_spotify_status(
+            response,
+            f"fetching artist {artist_number}/{total_artists}",
+        )
+
+        artist = response.json()
+        if artist:
+            artists_by_id[artist["id"]] = artist
+
+        logger.info(
+            "Fetched artist %s/%s. Total artists fetched: %s/%s",
+            artist_number,
+            total_artists,
+            len(artists_by_id),
+            total_artists,
+        )
+
+        if artist_number < total_artists and request_delay_seconds > 0:
+            logger.info(
+                "Waiting %s seconds before the next artist request",
+                request_delay_seconds,
+            )
+            time.sleep(request_delay_seconds)
 
     return artists_by_id
 
@@ -209,16 +391,31 @@ def save_jsonl(records, output_file):
             file.write(json.dumps(record, ensure_ascii=False) + "\n")
 
 
-def extract_artists(input_file, output_dir=DEFAULT_OUTPUT_DIR, market="VN"):
+def extract_artists(
+    input_file,
+    output_dir=DEFAULT_OUTPUT_DIR,
+    market="VN",
+    track_request_delay_seconds=DEFAULT_TRACK_REQUEST_DELAY_SECONDS,
+    artist_request_delay_seconds=DEFAULT_ARTIST_REQUEST_DELAY_SECONDS,
+):
     logger.info("Reading top track CSV: %s", input_file)
     rows, track_ids = read_top_track_csv(input_file)
 
     access_token = get_access_token()
     headers = {"Authorization": f"Bearer {access_token}"}
 
-    tracks_by_id = fetch_tracks(track_ids, headers, market=market)
+    tracks_by_id = fetch_tracks(
+        track_ids,
+        headers,
+        market=market,
+        request_delay_seconds=track_request_delay_seconds,
+    )
     artist_rows, artist_ids = get_artist_rows(rows, tracks_by_id)
-    artists_by_id = fetch_artists(artist_ids, headers)
+    artists_by_id = fetch_artists(
+        artist_ids,
+        headers,
+        request_delay_seconds=artist_request_delay_seconds,
+    )
 
     fetched_at = get_chart_date(Path(input_file))
     if not fetched_at:
@@ -245,10 +442,18 @@ def extract_artists_from_latest_chart(
     input_dir=DEFAULT_INPUT_DIR,
     output_dir=DEFAULT_OUTPUT_DIR,
     market="VN",
+    track_request_delay_seconds=DEFAULT_TRACK_REQUEST_DELAY_SECONDS,
+    artist_request_delay_seconds=DEFAULT_ARTIST_REQUEST_DELAY_SECONDS,
 ):
     input_file = get_latest_csv(input_dir)
     logger.info("Latest CSV selected: %s", input_file)
-    return extract_artists(input_file, output_dir, market)
+    return extract_artists(
+        input_file,
+        output_dir,
+        market,
+        track_request_delay_seconds=track_request_delay_seconds,
+        artist_request_delay_seconds=artist_request_delay_seconds,
+    )
 
 
 def parse_args():
@@ -257,13 +462,49 @@ def parse_args():
     parser.add_argument("--input-dir", type=Path, default=DEFAULT_INPUT_DIR)
     parser.add_argument("--output-dir", type=Path, default=DEFAULT_OUTPUT_DIR)
     parser.add_argument("--market", default=os.getenv("SPOTIFY_MARKET", "VN"))
+    parser.add_argument(
+        "--track-request-delay-seconds",
+        "--track-batch-delay-seconds",
+        dest="track_request_delay_seconds",
+        type=float,
+        default=float(
+            os.getenv(
+                "SPOTIFY_TRACK_REQUEST_DELAY_SECONDS",
+                os.getenv(
+                    "SPOTIFY_TRACK_BATCH_DELAY_SECONDS",
+                    DEFAULT_TRACK_REQUEST_DELAY_SECONDS,
+                ),
+            )
+        ),
+    )
+    parser.add_argument(
+        "--artist-request-delay-seconds",
+        "--artist-batch-delay-seconds",
+        dest="artist_request_delay_seconds",
+        type=float,
+        default=float(
+            os.getenv(
+                "SPOTIFY_ARTIST_REQUEST_DELAY_SECONDS",
+                os.getenv(
+                    "SPOTIFY_ARTIST_BATCH_DELAY_SECONDS",
+                    DEFAULT_ARTIST_REQUEST_DELAY_SECONDS,
+                ),
+            )
+        ),
+    )
     return parser.parse_args()
 
 
 def main():
     args = parse_args()
     input_file = args.input_file or get_latest_csv(args.input_dir)
-    output_file = extract_artists(input_file, args.output_dir, args.market)
+    output_file = extract_artists(
+        input_file,
+        args.output_dir,
+        args.market,
+        track_request_delay_seconds=args.track_request_delay_seconds,
+        artist_request_delay_seconds=args.artist_request_delay_seconds,
+    )
     print(output_file)
 
 

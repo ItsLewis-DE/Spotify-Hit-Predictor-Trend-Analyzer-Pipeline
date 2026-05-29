@@ -29,5 +29,17 @@ with DAG(
             "input_dir": "data/top_track",
             "output_dir": "data/artist",
             "market": os.getenv("SPOTIFY_MARKET", "VN"),
+            "track_request_delay_seconds": float(
+                os.getenv(
+                    "SPOTIFY_TRACK_REQUEST_DELAY_SECONDS",
+                    os.getenv("SPOTIFY_TRACK_BATCH_DELAY_SECONDS", "2"),
+                )
+            ),
+            "artist_request_delay_seconds": float(
+                os.getenv(
+                    "SPOTIFY_ARTIST_REQUEST_DELAY_SECONDS",
+                    os.getenv("SPOTIFY_ARTIST_BATCH_DELAY_SECONDS", "2"),
+                )
+            ),
         },
     )
