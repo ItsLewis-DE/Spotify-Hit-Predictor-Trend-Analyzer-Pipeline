@@ -7,6 +7,7 @@ from pathlib import Path
 import pandas as pd
 import time
 import argparse
+import re
 load_dotenv()
 
 logging.basicConfig(
@@ -14,6 +15,13 @@ logging.basicConfig(
     format='%(asctime)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
+
+def get_chart_date(file_path):
+    match = re.search(r"\d{4}-\d{2}-\d{2}", file_path.name)
+    if match:
+        return match.group(0)
+    return ""
+
 def read_newest_file(dirpath,extension):
     path = Path(dirpath)
     if not path.exists():
@@ -91,8 +99,8 @@ def get_audio_feature(input_file: Path,output_dir: Path):
         logger.error("There is no data..")
         return
     df_merge = pd.merge(df_rank,df_audio_feature,left_on = 'spotify_id',right_on = 'id')
-    date = '-'.join(input_file.stem.split('-')[3:])
-    df_merge['fetched_at'] = pd.to_datetime(date)
+    date = get_chart_date(input_file)
+    df_merge['fetched_at'] = date
     output_dir.mkdir(parents=True,exist_ok = True)
     df_merge.to_json(f'{output_dir}/feature-{date}.json',orient='records',lines=True,force_ascii=False,date_format='iso')
 

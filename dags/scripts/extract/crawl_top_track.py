@@ -19,6 +19,7 @@ Lan dau chay: python download_spotify_charts.py --login
 import os
 import sys
 import time
+import json
 import argparse
 import glob
 from datetime import datetime, timedelta
@@ -43,13 +44,79 @@ except ImportError:
 SCRIPT_DIR = Path(__file__).resolve().parent.parent.parent
 BASE_DOWNLOAD_DIR = os.path.join(SCRIPT_DIR, "data", "top_track")
 CHROME_PROFILE_DIR = os.path.join(SCRIPT_DIR, "chrome_profile")
+COOKIES_FILE = os.path.join(SCRIPT_DIR, "spotify_cookies.json")
 BASE_URL = "https://charts.spotify.com/charts/view/regional-vn-weekly"
 LOGIN_WAIT_TIMEOUT = 180
+
+
+def clean_stale_locks():
+    """Xoa file lock cu cua Chrome profile (neu Chrome bi crash truoc do)."""
+    lock_files = [
+        os.path.join(CHROME_PROFILE_DIR, "SingletonLock"),
+        os.path.join(CHROME_PROFILE_DIR, "SingletonSocket"),
+        os.path.join(CHROME_PROFILE_DIR, "SingletonCookie"),
+    ]
+    for f in lock_files:
+        try:
+            if os.path.exists(f):
+                os.remove(f)
+        except OSError:
+            pass
+
+
+def save_cookies(driver):
+    """Luu cookies cua driver ra file JSON."""
+    try:
+        cookies = driver.get_cookies()
+        with open(COOKIES_FILE, "w") as f:
+            json.dump(cookies, f, indent=2)
+        print(f"[OK] Da luu {len(cookies)} cookies vao {COOKIES_FILE}")
+        return True
+    except Exception as e:
+        print(f"[!] Khong the luu cookies: {e}")
+        return False
+
+
+def load_cookies(driver):
+    """Load cookies tu file JSON vao driver."""
+    if not os.path.exists(COOKIES_FILE):
+        print("[INFO] Chua co file cookies. Can dang nhap lan dau voi --login")
+        return False
+    
+    try:
+        with open(COOKIES_FILE, "r") as f:
+            cookies = json.load(f)
+        
+        if not cookies:
+            print("[INFO] File cookies rong.")
+            return False
+        
+        # Phai truy cap domain truoc khi add cookies
+        driver.get("https://charts.spotify.com")
+        time.sleep(2)
+        
+        for cookie in cookies:
+            # Xoa cac truong khong can thiet co the gay loi
+            for key in ["sameSite", "storeId", "id"]:
+                cookie.pop(key, None)
+            try:
+                driver.add_cookie(cookie)
+            except Exception:
+                pass  # Bo qua cookie loi (het han, sai domain, v.v.)
+        
+        print(f"[OK] Da load {len(cookies)} cookies tu file.")
+        return True
+    except Exception as e:
+        print(f"[!] Loi khi load cookies: {e}")
+        return False
 
 
 def setup_driver(download_dir, headless=False, use_profile=True):
     """Khoi tao Chrome voi profile de luu session dang nhap."""
     os.makedirs(download_dir, exist_ok=True)
+    
+    # Xoa lock file cu truoc khi khoi dong
+    clean_stale_locks()
 
     chrome_options = Options()
 
@@ -108,40 +175,84 @@ def setup_driver(download_dir, headless=False, use_profile=True):
 def is_logged_in(driver):
     """Kiem tra da dang nhap chua bang URL hien tai va UI."""
     current_url = driver.current_url
-    if "login" in current_url or "accounts.spotify.com" in current_url:
+    # Dang o trang login cua Spotify -> chua login
+    if "accounts.spotify.com" in current_url:
         return False
-    if current_url.endswith("/home") or current_url.strip("/") == "https://charts.spotify.com":
+    # URL co chua "/login" trong path
+    if "/login" in current_url:
         return False
+    # Kiem tra co nut login tren trang khong
     try:
         driver.find_element(By.CSS_SELECTOR, '[data-testid="charts-login"]')
         return False
     except:
-        return True
+        pass
+    # Kiem tra co nut "Log in" / "Sign in" tren trang
+    try:
+        sign_in_buttons = driver.find_elements(By.XPATH, 
+            '//button[contains(text(),"Log in") or contains(text(),"Sign in")]'
+            '|//a[contains(text(),"Log in") or contains(text(),"Sign in")]')
+        if sign_in_buttons:
+            return False
+    except:
+        pass
+    # Neu khong co dau hieu chua login -> da login
+    return True
 
 
 def handle_login(driver, target_url, force_login=False, is_headless=False):
     """
     Xu ly dang nhap.
-    Neu da luu session tu truoc -> tu dong dang nhap.
-    Neu chua -> cho nguoi dung dang nhap thu cong.
+    1. Thu load cookies tu file truoc
+    2. Neu da luu session tu truoc -> tu dong dang nhap.
+    3. Neu chua -> cho nguoi dung dang nhap thu cong.
     """
-    print("[*] Truy cap trang chart...")
-    driver.get(target_url)
-    time.sleep(5)
+    # === BUOC 1: Thu load cookies da luu ===
+    if not force_login:
+        print("[*] Thu load cookies da luu...")
+        if load_cookies(driver):
+            # Sau khi load cookies, truy cap trang chart de kiem tra
+            print("[*] Truy cap trang chart de kiem tra session...")
+            driver.get(target_url)
+            time.sleep(5)
+            
+            current_url = driver.current_url
+            print(f"[INFO] URL sau khi load cookies: {current_url}")
+            
+            if is_logged_in(driver):
+                print("[OK] Da dang nhap tu cookies da luu! (Khong can dang nhap lai)")
+                return True
+            else:
+                print("[!] Cookies het han hoac khong hop le.")
+    
+    # === BUOC 2: Truy cap trang truc tiep (co the profile van con session) ===
+    if not force_login:
+        print("[*] Thu truy cap trang chart bang Chrome profile...")
+        driver.get(target_url)
+        time.sleep(5)
+        
+        current_url = driver.current_url
+        print(f"[INFO] URL: {current_url}")
+        
+        if is_logged_in(driver):
+            print("[OK] Da dang nhap tu Chrome profile!")
+            # Luu cookies ra file de lan sau dung
+            save_cookies(driver)
+            return True
 
-    current_url = driver.current_url
-    print(f"[INFO] URL: {current_url}")
-
-    if is_logged_in(driver) and not force_login:
-        print("[OK] Da dang nhap tu session truoc! (Khong can dang nhap lai)")
-        return True
-
-    # Chua dang nhap
+    # === BUOC 3: Can dang nhap thu cong ===
+    if force_login:
+        print("[*] Truy cap trang chart...")
+        driver.get(target_url)
+        time.sleep(5)
+        current_url = driver.current_url
+        print(f"[INFO] URL: {current_url}")
+    
     print("=" * 60)
     if force_login:
         print("[*] CHE DO DANG NHAP - Hay dang nhap trong Chrome")
     else:
-        print("[!] Session het han hoac khong duoc nhan dien - Hay dang nhap lai trong Chrome")
+        print("[!] Session het han - Hay dang nhap lai trong Chrome")
         
     if is_headless and not force_login:
         print("[FAIL] Khong the dang nhap trong che do Headless (an).")
@@ -164,8 +275,10 @@ def handle_login(driver, target_url, force_login=False, is_headless=False):
                 print(f"    [{elapsed}s] {current_url}")
                 last_url = current_url
             if is_logged_in(driver):
-                print("\n[OK] Dang nhap thanh cong! Session da duoc luu.")
+                print("\n[OK] Dang nhap thanh cong!")
                 time.sleep(3)
+                # === LUU COOKIES SAU KHI LOGIN THANH CONG ===
+                save_cookies(driver)
                 return True
         except Exception:
             pass
@@ -285,15 +398,6 @@ def download_chart(url, download_dir, headless=False, force_login=False):
 
         # Click download
         if not find_and_click_download(driver):
-            screenshot = os.path.join(BASE_DOWNLOAD_DIR, "debug_screenshot.png")
-            driver.save_screenshot(screenshot)
-            
-            page_source_file = os.path.join(BASE_DOWNLOAD_DIR, "debug_page_source.html")
-            with open(page_source_file, "w", encoding="utf-8") as f:
-                f.write(driver.page_source)
-                
-            print(f"[DEBUG] Screenshot: {screenshot}")
-            print(f"[DEBUG] Page source: {page_source_file}")
             return None
 
         # Cho download xong
@@ -308,9 +412,6 @@ def download_chart(url, download_dir, headless=False, force_login=False):
             return downloaded
         else:
             print("[!] Khong tim thay file CSV.")
-            screenshot = os.path.join(BASE_DOWNLOAD_DIR, "timeout_screenshot.png")
-            driver.save_screenshot(screenshot)
-            print(f"[DEBUG] Timeout screenshot: {screenshot}")
             return None
 
     except Exception as e:
@@ -320,6 +421,15 @@ def download_chart(url, download_dir, headless=False, force_login=False):
         return None
     finally:
         if driver:
+            try:
+                # Luu cookies 1 lan nua truoc khi quit (phong truong hop)
+                save_cookies(driver)
+            except:
+                pass
+            try:
+                time.sleep(1)
+            except:
+                pass
             driver.quit()
 
 
