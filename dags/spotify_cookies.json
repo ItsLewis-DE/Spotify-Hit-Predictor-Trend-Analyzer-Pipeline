@@ -1,0 +1,122 @@
+[
+  {
+    "domain": ".spotify.com",
+    "expiry": 1780108670,
+    "httpOnly": false,
+    "name": "_gat_UA-128942166-3",
+    "path": "/",
+    "sameSite": "Lax",
+    "secure": false,
+    "value": "1"
+  },
+  {
+    "domain": ".spotify.com",
+    "expiry": 1811644607,
+    "httpOnly": true,
+    "name": "sp_dc",
+    "path": "/",
+    "sameSite": "None",
+    "secure": true,
+    "value": "AQCPU0814XeNLxW3FnQKji7Rng9czVqlsi5KhLKgevGvWkydE04aFDUObDeO2XE1uqdUsVCo9qqycMk6_xzxu_gJbU8hHKAK0WTHGphJ7m1eQE4_VFq3uuV0avMVEcrx2FfxI32NTDKikHUX3tKCGUcZgHeKqW8-OwW2fs5NRsGjHgqJDXWsFU8vDYamDVMjS1Fe4LsaWC-l1ZxfMA"
+  },
+  {
+    "domain": ".spotify.com",
+    "expiry": 1780194995,
+    "httpOnly": true,
+    "name": "sp_landing",
+    "path": "/",
+    "sameSite": "Lax",
+    "secure": true,
+    "value": "https%3A%2F%2Fchallenge.spotify.com%2Fc%2F42580138-a0ff-41f5-9d6b-e047c398ea85-1%2F7517b365-3312-4f89-a4ec-717ebb605b3f%2Femail"
+  },
+  {
+    "domain": ".spotify.com",
+    "expiry": 1811644589,
+    "httpOnly": false,
+    "name": "sp_t",
+    "path": "/",
+    "sameSite": "None",
+    "secure": true,
+    "value": "ac6802a8-54a0-4a1f-9d75-a27f18d003ed"
+  },
+  {
+    "domain": ".spotify.com",
+    "expiry": 1780194995,
+    "httpOnly": true,
+    "name": "sp_landingref",
+    "path": "/",
+    "sameSite": "Lax",
+    "secure": true,
+    "value": "https%3A%2F%2Faccounts.spotify.com%2F"
+  },
+  {
+    "domain": ".spotify.com",
+    "expiry": 1811644607,
+    "httpOnly": false,
+    "name": "sp_key",
+    "path": "/",
+    "sameSite": "None",
+    "secure": true,
+    "value": "c5f89a68-2f40-4812-9769-8c14bbb5ffeb"
+  },
+  {
+    "domain": ".spotify.com",
+    "expiry": 1814668614,
+    "httpOnly": false,
+    "name": "_ga",
+    "path": "/",
+    "sameSite": "Lax",
+    "secure": false,
+    "value": "GA1.2.547603169.1780108611"
+  },
+  {
+    "domain": ".spotify.com",
+    "expiry": 1780195014,
+    "httpOnly": false,
+    "name": "_gid",
+    "path": "/",
+    "sameSite": "Lax",
+    "secure": false,
+    "value": "GA1.2.1985731221.1780108611"
+  },
+  {
+    "domain": "charts.spotify.com",
+    "expiry": 1814668615,
+    "httpOnly": false,
+    "name": "ki_r",
+    "path": "/",
+    "sameSite": "Lax",
+    "secure": false,
+    "value": ""
+  },
+  {
+    "domain": ".spotify.com",
+    "expiry": 1814668614,
+    "httpOnly": false,
+    "name": "_ga_VDJZGL4GYV",
+    "path": "/",
+    "sameSite": "Lax",
+    "secure": false,
+    "value": "GS2.2.s1780108614$o1$g0$t1780108614$j60$l0$h0"
+  },
+  {
+    "domain": ".spotify.com",
+    "expiry": 1811644615,
+    "httpOnly": false,
+    "name": "OptanonConsent",
+    "path": "/",
+    "sameSite": "Lax",
+    "secure": false,
+    "value": "isGpcEnabled=0&datestamp=Sat+May+30+2026+04%3A36%3A55+GMT%2B0200+(Central+European+Summer+Time)&version=202601.2.0&browserGpcFlag=0&isIABGlobal=false&hosts=&landingPath=https%3A%2F%2Fcharts.spotify.com%2Fcharts%2Fview%2Fregional-vn-weekly%2F2026-05-28&groups=s00%3A1%2Cf00%3A1%2Cm00%3A1%2Ct00%3A1%2Ci00%3A1%2Cf11%3A1%2Cm02%3A1%2Ct02%3A1%2Cm03%3A1%2CID01%3A1"
+  },
+  {
+    "domain": "charts.spotify.com",
+    "expiry": 1814668615,
+    "httpOnly": false,
+    "name": "ki_t",
+    "path": "/",
+    "sameSite": "Lax",
+    "secure": false,
+    "value": "1780108610644%3B1780108610644%3B1780108615708%3B1%3B2"
+  }
+]

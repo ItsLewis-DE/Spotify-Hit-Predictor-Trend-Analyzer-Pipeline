@@ -40,9 +40,8 @@ def get_access_token():
     response.raise_for_status()
     return response.json()["access_token"]
 
-ACCESS_TOKEN = get_access_token()
-
 def fetch_spotify_metadata_by_uri(input_path,uri_series,output_dir,date,uri_column_name="uri"):
+    access_token = get_access_token()
     unique_uris = uri_series.dropna().unique().tolist()
     track_data_list = []
     total_tracks = len(unique_uris)
@@ -57,7 +56,7 @@ def fetch_spotify_metadata_by_uri(input_path,uri_series,output_dir,date,uri_colu
             for attempt in range(max_retries):
                 response = requests.get(
                     f"https://api.spotify.com/v1/tracks/{track_id}",
-                    headers={"Authorization": f"Bearer {ACCESS_TOKEN}"},
+                    headers={"Authorization": f"Bearer {access_token}"},
                     timeout=30
                 )
                 
@@ -101,7 +100,7 @@ def fetch_spotify_metadata_by_uri(input_path,uri_series,output_dir,date,uri_colu
                 temp_df.to_json(output_dir/f'track_info-{date}.json', orient="records", lines=True, force_ascii=False,date_format='iso')
                 print(" -> Đã autosave")
 
-            time.sleep(2)  # Delay giữa các lần gọi API (2s/bài)
+            time.sleep(1)  # Delay giữa các lần gọi API (2s/bài)
 
         except Exception as e:
             print(f"Lỗi tại track {i + 1} ({uri}): {e}")
@@ -124,23 +123,12 @@ def parse_args() -> argparse.Namespace:
         description = 'Lay data Spotify audio feature tu API'
     )
     parser.add_argument(
-        '--input_file',
-        type=Path,
-        help='File input'
-    )
-    parser.add_argument(
         '--output_dir',
         default = 'data/track_info',
         type=Path,
         help = 'Dir output'
     )
-    parser.add_argument(
-        '--input_dir',
-        default = 'data/top_track',
-        type=Path,
-        help='Dir input'
-    )
-    return parser.parse_args()
+    return parser.parse_known_args()[0]
 
 def read_newest_file(dirpath,extension):
     path = Path(dirpath)
@@ -159,10 +147,9 @@ def read_newest_file(dirpath,extension):
     return newest_file
 
 
-if __name__ == "__main__":
+def crawl_track_spotify(file_top_track):
     args = parse_args()
-    input_path = args.input_file or read_newest_file(args.input_dir,'.csv')   
-
+    input_path = Path(file_top_track)
     df = pd.read_csv(input_path)
     args.output_dir.mkdir(parents=True,exist_ok = True)
     date = get_chart_date(input_path)
@@ -171,3 +158,4 @@ if __name__ == "__main__":
     # lưu JSON để dùng lại, không cần fetch lại lần sau
     metadata_df['fetched_at'] = date
     metadata_df.to_json(f'{args.output_dir}-{date}.json', orient="records",lines=True,force_ascii=False,date_format='iso')
+    time.sleep(30)
