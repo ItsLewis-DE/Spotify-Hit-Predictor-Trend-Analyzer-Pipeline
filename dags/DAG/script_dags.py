@@ -38,11 +38,10 @@ def spotify_pipeline():
    def extract_artist(file_track):
       crawl_artist(file_track)
 
-   file_top_track = extract_top_track
-   # task_audio_feature = extract_audio_feature(file_top_track.output)
-   # file_track = extract_track_spotify(file_top_track.output)
-   # task_artist= extract_artist(file_track)
+   file_top_track = extract_top_track.output
+   task_audio_feature = extract_audio_feature(file_top_track)
+   file_track = extract_track_spotify(file_top_track)
+   task_artist = extract_artist(file_track)
 
 dag = spotify_pipeline()
    
-

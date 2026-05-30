@@ -92,7 +92,7 @@ services:
     <<: *airflow-common
     command: scheduler
     healthcheck:
-      test: ["CMD", "airflow", "jobs", "check", "--job-type", "SchedulerJob", "--hostname", "$${HOSTNAME}"]
+      test: ["CMD-SHELL", 'airflow jobs check --job-type SchedulerJob --hostname "$${HOSTNAME}"']
       interval: 30s
       timeout: 10s
       retries: 5
@@ -183,6 +183,7 @@ services:
   # ---------------------------------------------------------------------------
   selenium:
     image: selenium/standalone-chrome:latest
+    platform: linux/amd64
     shm_size: 2gb
     ports:
       - "4444:4444"

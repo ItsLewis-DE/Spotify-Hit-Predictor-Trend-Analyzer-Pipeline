@@ -154,8 +154,10 @@ def crawl_track_spotify(file_top_track):
     args.output_dir.mkdir(parents=True,exist_ok = True)
     date = get_chart_date(input_path)
     metadata_df = fetch_spotify_metadata_by_uri(input_path,df["uri"],args.output_dir,date)
+    output_file = args.output_dir / f"track_info-{date}.json"
 
     # lưu JSON để dùng lại, không cần fetch lại lần sau
     metadata_df['fetched_at'] = date
-    metadata_df.to_json(f'{args.output_dir}-{date}.json', orient="records",lines=True,force_ascii=False,date_format='iso')
+    metadata_df.to_json(output_file, orient="records",lines=True,force_ascii=False,date_format='iso')
     time.sleep(30)
+    return str(output_file)
