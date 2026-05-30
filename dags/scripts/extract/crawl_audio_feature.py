@@ -42,14 +42,15 @@ def get_access_token() ->str:
     client_secret = os.getenv('SPOTIFY_CLIENT_SECRET')
     response = requests.post(
         'https://accounts.spotify.com/api/token',
-        data = {'grant_type':'client_credentials'},
-        auth= {client_id,client_secret},
+        data={'grant_type': 'client_credentials'},
+        auth=(client_id, client_secret),
         timeout=30
     )
     response.raise_for_status()
     return response.json()['access_token']
 
-def get_api_audio_feature(spotify_id_string: str,timezone: int)-> pd.DataFrame:
+def get_api_audio_feature(spotify_id_string: str,timezone: int,i: int)-> pd.DataFrame:
+    logger.info(f"Extracting {i+6}/200")
     BASE_URL = f'https://spotify-extended-audio-features-api.p.rapidapi.com/v1/audio-features'
     params = {'ids': spotify_id_string}
     if timezone ==1:
@@ -65,10 +66,8 @@ def get_api_audio_feature(spotify_id_string: str,timezone: int)-> pd.DataFrame:
         "X-RapidAPI-Host": "spotify-extended-audio-features-api.p.rapidapi.com" 
     }
 
-    logger.info(f"API KEY : {X_RapidAPI_Key}")
     response = requests.get(BASE_URL, headers=headers,params = params)
     if response.status_code == 429:
-        logger.warning("RATE LIMIT !!!")
         return None
     if response.status_code == 200:
         logger.info("Extracting data audio feature....")
@@ -82,36 +81,38 @@ def get_audio_feature(input_file: Path,output_dir: Path):
     spotify_id_string = df_rank['spotify_id'].to_list()
     list_df = []
     timezone = [1,2,3,4]
-    id_tz=0
-    for i in range(0,len(spotify_id_string),5):
+    date = get_chart_date(input_file)
+    id_tz=1
+    output_dir.mkdir(parents=True,exist_ok = True)
+    i=0
+    while i < len(spotify_id_string):
         id_string = ','.join(spotify_id_string[i : i +5])
-        df = get_api_audio_feature(id_string,id_tz)
+        df = get_api_audio_feature(id_string,id_tz,i)
         if df is not None:
             list_df.append(df)
-        elif df is None:
+            i+=5
+        else:
+            logger.warning("API het request...")
+            if list_df:
+                logger.info("Dang luu file....")
+                df_audio_feature = pd.concat(list_df,ignore_index =True)
+                df_merge = pd.merge(df_rank,df_audio_feature,left_on = 'spotify_id',right_on = 'id')
+                df_merge.to_json(f'{output_dir}/feature-{date}.json',orient='records',lines=True,force_ascii=False,date_format='iso',mode='a')
+                # clear list_df sau khi save de khong luu trung
+                list_df = []
             id_tz+=1
         if id_tz >= len(timezone):
-            break 
+            break
         time.sleep(2)   
     if list_df:
         df_audio_feature = pd.concat(list_df,ignore_index =True)
     else:
         logger.error("There is no data..")
         return
-    df_merge = pd.merge(df_rank,df_audio_feature,left_on = 'spotify_id',right_on = 'id')
-    date = get_chart_date(input_file)
-    df_merge['fetched_at'] = date
-    output_dir.mkdir(parents=True,exist_ok = True)
-    df_merge.to_json(f'{output_dir}/feature-{date}.json',orient='records',lines=True,force_ascii=False,date_format='iso')
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description = 'Lay data Spotify audio feature tu API'
-    )
-    parser.add_argument(
-        '--input_file',
-        type=Path,
-        help='File input'
     )
     parser.add_argument(
         '--output_dir',
@@ -119,20 +120,10 @@ def parse_args() -> argparse.Namespace:
         type=Path,
         help = 'Dir output'
     )
-    parser.add_argument(
-        '--input_dir',
-        default = 'data/top_track',
-        type=Path,
-        help='Dir input'
-    )
-    return parser.parse_args()
+    return parser.parse_known_args()[0]
 
-def main() -> None:
+def crawl_audio_feature(file_top_track):
     args = parse_args()
-    input_path = args.input_file or read_newest_file(args.input_dir,'.csv')
     logger.info("Extracting data to file json...")
-    get_audio_feature(input_path,args.output_dir)
+    get_audio_feature(Path(file_top_track),args.output_dir)
     logger.info(f"saved data into {args.output_dir}")
-
-if __name__ == '__main__':
-    main()
