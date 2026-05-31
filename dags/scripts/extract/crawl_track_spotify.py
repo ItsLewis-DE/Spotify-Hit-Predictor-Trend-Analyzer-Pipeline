@@ -157,5 +157,5 @@ def crawl_track_spotify(file_top_track):
 
     # lưu JSON để dùng lại, không cần fetch lại lần sau
     metadata_df['fetched_at'] = date
-    metadata_df.to_json(f'{args.output_dir}-{date}.json', orient="records",lines=True,force_ascii=False,date_format='iso')
+    metadata_df.to_json(args.output_dir / f'track_info-{date}.json', orient="records",lines=True,force_ascii=False,date_format='iso')
     time.sleep(30)

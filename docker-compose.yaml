@@ -10,8 +10,10 @@
 
 x-airflow-common: &airflow-common
   image: apache/airflow:3.2.2-python3.12
+  env_file:
+    - .env
   environment: &airflow-common-env
-    _PIP_ADDITIONAL_REQUIREMENTS: "selenium webdriver-manager"
+    _PIP_ADDITIONAL_REQUIREMENTS: "selenium webdriver-manager awscli"
     AIRFLOW__CORE__EXECUTOR: LocalExecutor
     AIRFLOW__CORE__EXECUTION_API_SERVER_URL: "http://airflow-api-server:8080/execution"
     AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${POSTGRES_USER:-airflow}:${POSTGRES_PASSWORD:-airflow}@postgres:5432/${POSTGRES_DB:-airflow}
