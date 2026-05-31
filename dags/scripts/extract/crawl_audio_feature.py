@@ -101,7 +101,7 @@ def get_audio_feature(input_file: Path,output_dir: Path):
                 # clear list_df sau khi save de khong luu trung
                 list_df = []
             id_tz+=1
-        if id_tz >= len(timezone):
+        if id_tz > len(timezone):
             break
         time.sleep(2)   
     if list_df:

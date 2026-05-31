@@ -20,11 +20,11 @@ default_args = {
  )
 
 def spotify_pipeline():
-   extract_top_track = BashOperator(
-      task_id = 'extract_top_track',
-      bash_command=" python3 -u /opt/airflow/dags/scripts/extract/crawl_top_track.py --date $(date +%Y-%m-%d) ",
-      do_xcom_push=True
-   )
+   # extract_top_track = BashOperator(
+   #    task_id = 'extract_top_track',
+   #    bash_command=" python3 -u /opt/airflow/dags/scripts/extract/crawl_top_track.py --date {{ logical_date.strftime('%Y-%m-%d') }} ",
+   #    do_xcom_push=True
+   # )
 
    @task
    def extract_audio_feature(file_top_track):
@@ -38,8 +38,12 @@ def spotify_pipeline():
    def extract_artist(file_track):
       crawl_artist(file_track)
 
-   file_top_track = extract_top_track
-   # task_audio_feature = extract_audio_feature(file_top_track.output)
+   load_top_track_to_s3_task = BashOperator(
+      task_id = "load_all_data_to_s3",
+      bash_command = "/opt/airflow/dags/scripts/load/load_all_data_to_s3.sh {{ logical_date.strftime('%Y-%m-%d') }}"
+   )
+   # file_top_track = extract_top_track
+   # # task_audio_feature = extract_audio_feature(file_top_track.output)
    # file_track = extract_track_spotify(file_top_track.output)
    # task_artist= extract_artist(file_track)
 
