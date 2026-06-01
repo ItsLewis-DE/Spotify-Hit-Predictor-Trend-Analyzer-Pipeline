@@ -1,0 +1,21 @@
+name: 'spotify_transform'
+version: '1.0.0'
+
+profile: 'spotify_snowflake'
+
+model-paths: ["models"]
+analysis-paths: ["analyses"]
+test-paths: ["tests"]
+seed-paths: ["seeds"]
+macro-paths: ["macros"]
+
+clean-targets:
+  - "target"
+  - "dbt_packages"
+
+models:
+  spotify_transform:
+    staging:
+      +materialized: view
+    marts:
+      +materialized: table

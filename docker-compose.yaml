@@ -9,11 +9,13 @@
 # =============================================================================
 
 x-airflow-common: &airflow-common
-  image: apache/airflow:3.2.2-python3.12
+  build:
+    context: .
+    dockerfile: Dockerfile
+  image: spotify-airflow:latest
   env_file:
     - .env
   environment: &airflow-common-env
-    _PIP_ADDITIONAL_REQUIREMENTS: "selenium webdriver-manager awscli"
     AIRFLOW__CORE__EXECUTOR: LocalExecutor
     AIRFLOW__CORE__EXECUTION_API_SERVER_URL: "http://airflow-api-server:8080/execution"
     AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${POSTGRES_USER:-airflow}:${POSTGRES_PASSWORD:-airflow}@postgres:5432/${POSTGRES_DB:-airflow}
@@ -33,12 +35,15 @@ x-airflow-common: &airflow-common
     AIRFLOW__DAG_PROCESSOR__REFRESH_INTERVAL: 60
     # TODO(security): In production, configure AIRFLOW__WEBSERVER__BASE_URL with HTTPS
     # TODO(security): In production, use a secrets backend (e.g., AWS Secrets Manager, HashiCorp Vault)
+    # dbt
+    DBT_PROFILES_DIR: /opt/airflow/dbt
   volumes:
     - ${AIRFLOW_PROJ_DIR:-.}/dags:/opt/airflow/dags
     - ${AIRFLOW_PROJ_DIR:-.}/logs:/opt/airflow/logs
     - ${AIRFLOW_PROJ_DIR:-.}/plugins:/opt/airflow/plugins
     - ${AIRFLOW_PROJ_DIR:-.}/config:/opt/airflow/config
     - ${AIRFLOW_PROJ_DIR:-.}/data:/opt/airflow/data
+    - ${AIRFLOW_PROJ_DIR:-.}/dbt:/opt/airflow/dbt
   user: "${AIRFLOW_UID:-50000}:0"
   depends_on: &airflow-common-depends-on
     postgres:
