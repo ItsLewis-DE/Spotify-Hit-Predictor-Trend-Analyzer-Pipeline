@@ -18,6 +18,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 SPOTIFY_API_BASE_URL = "https://api.spotify.com/v1"
+SPOTIFY_RATE_LIMIT_FALLBACK_SECONDS = 5
 
 
 def get_chart_date(file_path: Path) -> str:
@@ -98,50 +99,101 @@ def get_track_ids(track_info_records: list[dict]) -> list[str]:
     return track_ids
 
 
-def get_access_token() -> str:
-    # Lay access token bang Client Credentials Flow cua Spotify.
-    client_id = os.getenv("SPOTIFY_CLIENT_ID")
-    client_secret = os.getenv("SPOTIFY_CLIENT_SECRET")
-
-    if not client_id or not client_secret:
-        raise RuntimeError("Missing SPOTIFY_CLIENT_ID or SPOTIFY_CLIENT_SECRET")
-
-    response = requests.post(
-        "https://accounts.spotify.com/api/token",
-        data={"grant_type": "client_credentials"},
-        auth=(client_id, client_secret),
-        timeout=30
-    )
-    response.raise_for_status()
-    return response.json()["access_token"]
+def parse_retry_after(value: str | None) -> int:
+    try:
+        return max(int(value or SPOTIFY_RATE_LIMIT_FALLBACK_SECONDS), 1)
+    except ValueError:
+        return SPOTIFY_RATE_LIMIT_FALLBACK_SECONDS
 
 
-def spotify_get(url: str, token: str, params: dict | None = None) -> dict:
-    # Goi Spotify API voi retry don gian khi gap rate limit 429.
-    headers = {"Authorization": f"Bearer {token}"}
+def get_access_tokens() -> list[dict]:
+    # Lay access token cho credential mac dinh va credential backup.
+    tokens = []
+    credential_keys = [
+        ("SPOTIFY_CLIENT_ID", "SPOTIFY_CLIENT_ID", "SPOTIFY_CLIENT_SECRET"),
+        ("SPOTIFY_CLIENT_ID_2", "SPOTIFY_CLIENT_ID_2", "SPOTIFY_CLIENT_SECRET_2")
+    ]
 
-    for _ in range(3):
-        response = requests.get(url, headers=headers, params=params, timeout=30)
+    for name, id_key, secret_key in credential_keys:
+        client_id = os.getenv(id_key)
+        client_secret = os.getenv(secret_key)
+
+        if not client_id and not client_secret:
+            continue
+
+        if not client_id or not client_secret:
+            logger.warning(
+                f"Skipping incomplete Spotify credential {name}; "
+                f"missing {id_key if not client_id else secret_key}"
+            )
+            continue
+
+        response = requests.post(
+            "https://accounts.spotify.com/api/token",
+            data={"grant_type": "client_credentials"},
+            auth=(client_id, client_secret),
+            timeout=30
+        )
+        response.raise_for_status()
+        tokens.append({"name": name, "token": response.json()["access_token"]})
+
+    if not tokens:
+        raise RuntimeError(
+            "Missing Spotify credentials. Set SPOTIFY_CLIENT_ID/"
+            "SPOTIFY_CLIENT_SECRET or backup variants like "
+            "SPOTIFY_CLIENT_ID_2/SPOTIFY_CLIENT_SECRET_2."
+        )
+
+    logger.info(f"Loaded {len(tokens)} Spotify API token(s)")
+    return tokens
+
+
+def spotify_get(url: str, tokens: list[dict], params: dict | None = None) -> dict:
+    # Goi Spotify API; gap 429 thi doi sang token tiep theo.
+    last_response = None
+
+    for _ in range(len(tokens)):
+        token_info = tokens[0]
+        response = requests.get(
+            url,
+            headers={"Authorization": f"Bearer {token_info['token']}"},
+            params=params,
+            timeout=30
+        )
+
         if response.status_code == 429:
-            retry_after = int(response.headers.get("Retry-After", 5))
-            logger.warning(f"Rate limited. Waiting {retry_after} seconds...")
-            time.sleep(retry_after)
+            last_response = response
+            tokens.append(tokens.pop(0))
+            logger.warning(
+                f"Rate limited for {token_info['name']}. "
+                "Switching Spotify API credential..."
+            )
             continue
 
         response.raise_for_status()
         return response.json()
 
-    response.raise_for_status()
-    return {}
+    retry_after = parse_retry_after(
+        last_response.headers.get("Retry-After") if last_response else None
+    )
+    logger.warning(
+        f"All Spotify API credentials are rate limited. "
+        f"Waiting {retry_after} seconds..."
+    )
+    time.sleep(retry_after)
+    return spotify_get(url, tokens, params)
 
 
-def fetch_tracks(track_ids: list[str], token: str) -> dict[str, dict]:
+def fetch_tracks(
+    track_ids: list[str],
+    tokens: list[dict]
+) -> dict[str, dict]:
     # Goi Track API de lay full track object cho tung track_id.
     tracks_by_id = {}
 
     for index, track_id in enumerate(track_ids, start=1):
         logger.info(f"Fetching track {index}/{len(track_ids)}: {track_id}")
-        track = spotify_get(f"{SPOTIFY_API_BASE_URL}/tracks/{track_id}", token)
+        track = spotify_get(f"{SPOTIFY_API_BASE_URL}/tracks/{track_id}", tokens)
         if track and track.get("id"):
             tracks_by_id[track["id"]] = track
         time.sleep(0.2)
@@ -149,13 +201,16 @@ def fetch_tracks(track_ids: list[str], token: str) -> dict[str, dict]:
     return tracks_by_id
 
 
-def fetch_artists(artist_ids: list[str], token: str) -> dict[str, dict]:
+def fetch_artists(
+    artist_ids: list[str],
+    tokens: list[dict]
+) -> dict[str, dict]:
     # Goi Artist API de lay full artist object va bo field images.
     artists_by_id = {}
 
     for index, artist_id in enumerate(artist_ids, start=1):
         logger.info(f"Fetching artist {index}/{len(artist_ids)}: {artist_id}")
-        artist = spotify_get(f"{SPOTIFY_API_BASE_URL}/artists/{artist_id}", token)
+        artist = spotify_get(f"{SPOTIFY_API_BASE_URL}/artists/{artist_id}", tokens)
         if artist and artist.get("id"):
             artist.pop("images", None)
             artists_by_id[artist["id"]] = artist
@@ -255,8 +310,8 @@ def crawl_artist(file_track: str | Path | None = None) -> str:
     if not track_ids:
         raise RuntimeError(f"There is no track_id in {input_path}")
 
-    token = get_access_token()
-    tracks_by_id = fetch_tracks(track_ids, token)
+    tokens = get_access_tokens()
+    tracks_by_id = fetch_tracks(track_ids, tokens)
 
     artist_ids = []
     seen_artist_ids = set()
@@ -267,7 +322,7 @@ def crawl_artist(file_track: str | Path | None = None) -> str:
                 artist_ids.append(artist_id)
                 seen_artist_ids.add(artist_id)
 
-    artists_by_id = fetch_artists(artist_ids, token)
+    artists_by_id = fetch_artists(artist_ids, tokens)
 
     date = get_chart_date(input_path)
     artist_records = build_artist_records(
@@ -285,3 +340,8 @@ def crawl_artist(file_track: str | Path | None = None) -> str:
             file.write(json.dumps(record, ensure_ascii=False) + "\n")
 
     logger.info(f"Saved {len(artist_records)} artist records to {output_file}")
+    return str(output_file)
+
+
+if __name__ == "__main__":
+    crawl_artist()
