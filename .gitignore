@@ -55,3 +55,9 @@ ANTIGRAVITY.md
 s3_basic_commands.ipynb
 setup_aws_cli_docker.ipynb
 skills.md
+# =============================================================================
+# dbt
+# =============================================================================
+dbt/target/
+dbt/dbt_packages/
+dbt/logs/
