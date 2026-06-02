@@ -1,0 +1,13 @@
+{
+  "projectRoot": "/home/phongthanh/Spotify-Hit-Predictor-Trend-Analyzer-Pipeline",
+  "batchImportData": {
+    "dags/DAG/script_dags.py": [
+      "dags/scripts/extract/crawl_artist.py",
+      "dags/scripts/extract/crawl_audio_feature.py",
+      "dags/scripts/extract/crawl_track_spotify.py"
+    ],
+    "dags/scripts/extract/crawl_artist.py": [],
+    "dags/scripts/extract/crawl_audio_feature.py": [],
+    "dags/scripts/extract/crawl_track_spotify.py": []
+  }
+}

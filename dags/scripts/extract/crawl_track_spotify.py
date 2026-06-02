@@ -24,9 +24,13 @@ def get_chart_date(file_path):
         return match.group(0)
     return ""
 
-def get_access_token():
-    client_id = os.getenv("SPOTIFY_CLIENT_ID")
-    client_secret = os.getenv("SPOTIFY_CLIENT_SECRET")
+def get_access_token(key):
+    if key==1:
+        client_id = os.getenv("SPOTIFY_CLIENT_ID")
+        client_secret = os.getenv("SPOTIFY_CLIENT_SECRET")
+    else:
+        client_id = os.getenv("SPOTIFY_CLIENT_ID_2")
+        client_secret = os.getenv("SPOTIFY_CLIENT_SECRET_2")
     
     if not client_id or not client_secret:
         raise RuntimeError("Missing SPOTIFY_CLIENT_ID or SPOTIFY_CLIENT_SECRET")
@@ -41,40 +45,48 @@ def get_access_token():
     return response.json()["access_token"]
 
 def fetch_spotify_metadata_by_uri(input_path,uri_series,output_dir,date,uri_column_name="uri"):
-    access_token = get_access_token()
     unique_uris = uri_series.dropna().unique().tolist()
     track_data_list = []
     total_tracks = len(unique_uris)
-
-    for i, uri in enumerate(unique_uris):
+    key =1 
+    i=0
+    access_token = get_access_token(key)
+    while i < total_tracks:
+        uri = unique_uris[i]
         try:
             # Lấy track_id từ dạng spotify:track:xxxx...
             track_id = uri.split(":")[-1]
             
             # Simple retry logic để handle 429 Too Many Requests
-            max_retries = 3
-            for attempt in range(max_retries):
-                response = requests.get(
-                    f"https://api.spotify.com/v1/tracks/{track_id}",
-                    headers={"Authorization": f"Bearer {access_token}"},
-                    timeout=30
-                )
-                
-                if response.status_code == 429:
-                    retry_after = int(response.headers.get("Retry-After", 5))
-                    print(f"Rate limited. Waiting {retry_after} seconds...")
+            response = requests.get(
+                f"https://api.spotify.com/v1/tracks/{track_id}",
+                headers={"Authorization": f"Bearer {access_token}"},
+                timeout=30
+            )
+            
+            if response.status_code == 429:
+                retry_after = int(response.headers.get("Retry-After", 5))
+                print(f"Rate limited. Dang thay doi Key Access!")
+                if key ==1:
+                    key=2
+                    access_token = get_access_token(key)
+                else:
+                    logger.error("Ca 2 deu bi rate limit")
                     time.sleep(retry_after)
-                    continue
-                break
+                    key=1
+                    access_token = get_access_token(key)
+                continue
                 
             if response.status_code == 404:
                 print(f"Track {i + 1}/{total_tracks} không tìm thấy: {uri}")
+                i+=1
                 continue
-                
+            
             response.raise_for_status()
             track = response.json()
 
             if track is None or "id" not in track:
+                i+=1
                 continue
 
             album    = track.get("album", {})
@@ -99,12 +111,13 @@ def fetch_spotify_metadata_by_uri(input_path,uri_series,output_dir,date,uri_colu
                 temp_df['fetched_at'] = date
                 temp_df.to_json(output_dir/f'track_info-{date}.json', orient="records", lines=True, force_ascii=False,date_format='iso')
                 print(" -> Đã autosave")
-
+            i+=1
             time.sleep(1)  # Delay giữa các lần gọi API (2s/bài)
 
         except Exception as e:
             print(f"Lỗi tại track {i + 1} ({uri}): {e}")
             time.sleep(2)
+            i+=1
             continue
 
     return pd.DataFrame(track_data_list, columns=[
@@ -158,4 +171,4 @@ def crawl_track_spotify(file_top_track):
     # lưu JSON để dùng lại, không cần fetch lại lần sau
     metadata_df['fetched_at'] = date
     metadata_df.to_json(args.output_dir / f'track_info-{date}.json', orient="records",lines=True,force_ascii=False,date_format='iso')
-    time.sleep(30)
+    time.sleep(180)

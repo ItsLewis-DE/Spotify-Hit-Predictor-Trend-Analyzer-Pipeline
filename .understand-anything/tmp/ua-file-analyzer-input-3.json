@@ -1,0 +1,9 @@
+{
+  "projectRoot": "/home/phongthanh/Spotify-Hit-Predictor-Trend-Analyzer-Pipeline",
+  "batchImportData": {
+    ".env.example": [],
+    "CONTRIBUTING.md": [],
+    "README.md": [],
+    "pyproject.toml": []
+  }
+}
