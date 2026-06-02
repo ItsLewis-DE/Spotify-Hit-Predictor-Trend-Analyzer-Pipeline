@@ -1,22 +1,22 @@
-import argparse
-import json
-import logging
-import os
-import time
-from pathlib import Path
-import re
-import pandas as pd
 import requests
+import json
+import os, logging
 from dotenv import load_dotenv
-
+from pathlib import Path
+import pandas as pd
+import time
+import argparse
+import re
+import sys
 load_dotenv()
 
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s'
 )
-
 logger = logging.getLogger(__name__)
+
+BATCH_SIZE = 50
 
 def get_chart_date(file_path):
     match = re.search(r"\d{4}-\d{2}-\d{2}", file_path.name)
@@ -24,141 +24,10 @@ def get_chart_date(file_path):
         return match.group(0)
     return ""
 
-def get_access_token(key):
-    if key==1:
-        client_id = os.getenv("SPOTIFY_CLIENT_ID")
-        client_secret = os.getenv("SPOTIFY_CLIENT_SECRET")
-    else:
-        client_id = os.getenv("SPOTIFY_CLIENT_ID_2")
-        client_secret = os.getenv("SPOTIFY_CLIENT_SECRET_2")
-    
-    if not client_id or not client_secret:
-        raise RuntimeError("Missing SPOTIFY_CLIENT_ID or SPOTIFY_CLIENT_SECRET")
-
-    response = requests.post(
-        "https://accounts.spotify.com/api/token",
-        data={"grant_type": "client_credentials"},
-        auth=(client_id, client_secret),
-        timeout=30,
-    )
-    response.raise_for_status()
-    return response.json()["access_token"]
-
-def fetch_spotify_metadata_by_uri(input_path,uri_series,output_dir,date,uri_column_name="uri"):
-    unique_uris = uri_series.dropna().unique().tolist()
-    track_data_list = []
-    total_tracks = len(unique_uris)
-    key =1 
-    i=0
-    access_token = get_access_token(key)
-    while i < total_tracks:
-        uri = unique_uris[i]
-        try:
-            # Lấy track_id từ dạng spotify:track:xxxx...
-            track_id = uri.split(":")[-1]
-            
-            # Simple retry logic để handle 429 Too Many Requests
-            response = requests.get(
-                f"https://api.spotify.com/v1/tracks/{track_id}",
-                headers={"Authorization": f"Bearer {access_token}"},
-                timeout=30
-            )
-            
-            if response.status_code == 429:
-                retry_after = int(response.headers.get("Retry-After", 5))
-                logger.warning(f"Key {access_token} Rate limited ban phai doi {retry_after}s. Dang thay doi Key Access!")
-                if key ==1:
-                    key=2
-                    access_token = get_access_token(key)
-                else:
-                    logger.error(f"Key {access_token} Ca 2 deu bi rate limit")
-                    logger.warning(f"Ban phai doi {retry_after}s")
-                    time.sleep(retry_after)
-                    key=1
-                    access_token = get_access_token(key)
-                continue
-                
-            if response.status_code == 404:
-                logger.warning(f"Track {i + 1}/{total_tracks} không tìm thấy: {uri}")
-                i+=1
-                continue
-            
-            response.raise_for_status()
-            track = response.json()
-
-            if track is None or "id" not in track:
-                i+=1
-                continue
-
-            album    = track.get("album", {})
-            ext_ids  = track.get("external_ids", {})
-            artists = track.get("artists",[])
-            artist_id_list = []
-            artist_name_list = []
-            for object in artists:
-                artist_id_list.append(object['id'])
-                artist_name_list.append(object['name'])
-
-            track_data_list.append({
-                uri_column_name:      track.get("uri"),
-                "track_id":           track.get("id"),
-                "duration_ms":        track.get("duration_ms"),
-                "explicit":           track.get("explicit"),
-                "isrc":               ext_ids.get("isrc"),
-                "album_type":         album.get("album_type"),  
-                "album_release_date": album.get("release_date"),
-                'album_name': album.get('name'),
-                'artist_id': ', '.join(artist_id_list),
-                'artist_name': ','.join(artist_name_list)
-            })
-
-            logger.info(f"Track {i + 1}/{total_tracks} xong: {track.get('name')}")
-
-            # autosave mỗi 10 bài
-            if (i + 1) % 10 == 0:
-                temp_df = pd.DataFrame(track_data_list)
-                temp_df['fetched_at'] = date
-                temp_df.to_json(output_dir/f'track_info-{date}.json', orient="records", lines=True, force_ascii=False,date_format='iso')
-                logger.info(" -> Đã autosave")
-            i+=1
-            time.sleep(1)  # Delay giữa các lần gọi API (2s/bài)
-
-        except Exception as e:
-            logger.error(f"Lỗi tại track {i + 1} ({uri}): {e}")
-            time.sleep(2)
-            i+=1
-            continue
-
-    return pd.DataFrame(track_data_list, columns=[
-        uri_column_name,
-        "track_id",
-        "duration_ms",
-        "explicit",
-        "isrc",
-        "album_type",
-        "album_release_date",
-        'album_name',
-        'artist_id',
-        'artist_name'
-    ])
-
-def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(
-        description = 'Lay data Spotify audio feature tu API'
-    )
-    parser.add_argument(
-        '--output_dir',
-        default = 'data/track_info',
-        type=Path,
-        help = 'Dir output'
-    )
-    return parser.parse_known_args()[0]
-
 def read_newest_file(dirpath,extension):
     path = Path(dirpath)
     if not path.exists():
         logger.error("Can not found file!!")
-        return
     files = [file for file in path.iterdir() 
              if file.is_file() and file.suffix == extension
             ]
@@ -170,17 +39,149 @@ def read_newest_file(dirpath,extension):
     )
     return newest_file
 
+def get_api_track_info(spotify_id_string: str,timezone: int)-> pd.DataFrame:
+    BASE_URL = 'https://spotify-extended-audio-features-api.p.rapidapi.com/v1/tracks'
+    params = {'ids': spotify_id_string}
+    if timezone ==1:
+        X_RapidAPI_Key = os.getenv('X_RapidAPI_Key_1')
+    elif timezone==2:
+        X_RapidAPI_Key = os.getenv('X_RapidAPI_Key_2')
+    elif timezone==3:
+        X_RapidAPI_Key = os.getenv('X_RapidAPI_Key_3')
+    else:
+        X_RapidAPI_Key = os.getenv('X_RapidAPI_Key_4')
+    headers = {
+        "X-RapidAPI-Key": X_RapidAPI_Key, 
+        "X-RapidAPI-Host": "spotify-extended-audio-features-api.p.rapidapi.com" 
+    }
+
+    response = requests.get(BASE_URL, headers=headers,params = params)
+    if response.status_code == 429:
+        return None
+    if response.status_code == 200:
+        logger.info("Extracting track info....")
+        tracks = response.json().get('tracks', [])
+        records = []
+        for track in tracks:
+            if track is None:
+                continue
+            album = track.get("album", {})
+            ext_ids = track.get("external_ids", {})
+            artists = track.get("artists", [])
+            album_artists = album.get("artists", [])
+
+            records.append({
+                # Track-level
+                "uri": track.get("uri"),
+                "track_id": track.get("id"),
+                "track_name": track.get("name"),
+                "track_number": track.get("track_number"),
+                "disc_number": track.get("disc_number"),
+                "duration_ms": track.get("duration_ms"),
+                "explicit": track.get("explicit"),
+                "popularity": track.get("popularity"),
+                "type": track.get("type"),
+                "is_local": track.get("is_local"),
+                "preview_url": track.get("preview_url"),
+                "href": track.get("href"),
+                "external_urls": track.get("external_urls", {}).get("spotify"),
+                # External IDs
+                "isrc": ext_ids.get("isrc"),
+                "ean": ext_ids.get("ean"),
+                "upc": ext_ids.get("upc"),
+                # Artists (flattened)
+                "artist_id": ", ".join([a.get("id", "") for a in artists]),
+                "artist_name": ", ".join([a.get("name", "") for a in artists]),
+                # Album
+                "album_id": album.get("id"),
+                "album_name": album.get("name"),
+                "album_type": album.get("album_type"),
+                "album_total_tracks": album.get("total_tracks"),
+                "album_release_date": album.get("release_date"),
+                "album_release_date_precision": album.get("release_date_precision"),
+                "album_external_urls": album.get("external_urls", {}).get("spotify"),
+                "album_artist_id": ", ".join([a.get("id", "") for a in album_artists]),
+                "album_artist_name": ", ".join([a.get("name", "") for a in album_artists]),
+            })
+        return pd.DataFrame(records)
+    else:
+        logger.error(f"API error: {response.status_code} - {response.text[:200]}")
+        return None
+
+def get_track_info(input_file: Path,output_dir: Path):
+    date = get_chart_date(input_file)
+    file_path = Path(output_dir/f'track_info-{date}.json')
+    last_id = None
+    if file_path.exists():
+        try:
+            old_df = pd.read_csv(file_path)
+            if not old_df.empty:
+                last_uri = old_df['uri'].iloc[-1]
+                last_id = last_uri.split(':')[-1]
+        except ValueError:
+            pass
+
+    df_rank = pd.read_csv(input_file)
+    df_rank['uri'] = df_rank['uri'].str.split(':').str[-1] 
+    df_rank.rename(columns= {'uri':'spotify_id'},inplace=True)
+    if last_id and last_id in df_rank['spotify_id'].values:
+        last_index = df_rank[df_rank['spotify_id'] == last_id].index[0]
+        df_rank = df_rank.iloc[last_index+1:]
+    else:
+        pass
+    spotify_id_string = df_rank['spotify_id'].to_list()
+    list_df = []
+    timezone = [1,2,3,4]
+    date = get_chart_date(input_file)
+    id_tz=1
+    output_dir.mkdir(parents=True,exist_ok = True)
+    i=0
+    while i < len(spotify_id_string):
+        id_string = ','.join(spotify_id_string[i : i + BATCH_SIZE])
+        df = get_api_track_info(id_string,id_tz)
+        if df is not None:
+            batch_end = min(i + BATCH_SIZE, len(spotify_id_string))
+            logger.info(f"Extracting {batch_end}/{len(spotify_id_string)}")
+            list_df.append(df)
+            i += BATCH_SIZE
+        else:
+            logger.warning("API het request...")
+            if list_df:
+                logger.info("Dang luu file....")
+                df_track_info = pd.concat(list_df,ignore_index =True)
+                df_track_info['fetched_at'] = date
+                df_track_info.to_json(f'{output_dir}/track_info-{date}.json',orient='records',lines=True,force_ascii=False,date_format='iso',mode='a')
+                # clear list_df sau khi save de khong luu trung
+                list_df = []
+            id_tz+=1
+        if id_tz > len(timezone):
+            break
+        time.sleep(2)   
+    if list_df:
+        df_track_info = pd.concat(list_df,ignore_index =True)
+        df_track_info['fetched_at'] = date
+        df_track_info.to_json(f'{output_dir}/track_info-{date}.json',orient='records',lines=True,force_ascii=False,date_format='iso',mode='a')
+    else:
+        if not list_df and i == 0:
+            logger.error("There is no data..")
+            sys.exit(1)
+    return output_dir / f'track_info-{date}.json'
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description = 'Lay data Spotify track info tu API'
+    )
+    parser.add_argument(
+        '--output_dir',
+        default = 'data/track_info',
+        type=Path,
+        help = 'Dir output'
+    )
+    return parser.parse_known_args()[0]
 
 def crawl_track_spotify(file_top_track):
     args = parse_args()
-    input_path = Path(file_top_track)
-    df = pd.read_csv(input_path)
-    args.output_dir.mkdir(parents=True,exist_ok = True)
-    date = get_chart_date(input_path)
-    metadata_df = fetch_spotify_metadata_by_uri(input_path,df["uri"],args.output_dir,date)
-
-    # lưu JSON để dùng lại, không cần fetch lại lần sau
-    metadata_df['fetched_at'] = date
-    metadata_df.to_json(args.output_dir / f'track_info-{date}.json', orient="records",lines=True,force_ascii=False,date_format='iso')
-    logger.info("Doi 180s de qua task tiep theo tranh bi rate limit")
-    time.sleep(180)
+    logger.info("Extracting track info to file json...")
+    output_file = get_track_info(Path(file_top_track),args.output_dir)
+    logger.info(f"saved data into {args.output_dir}")
+    return str(output_file) if output_file else None

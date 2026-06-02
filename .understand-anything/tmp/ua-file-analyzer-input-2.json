@@ -1,7 +1,0 @@
-{
-  "projectRoot": "/home/phongthanh/Spotify-Hit-Predictor-Trend-Analyzer-Pipeline",
-  "batchImportData": {
-    "docker-compose.yaml": [],
-    "Dockerfile": []
-  }
-}
