@@ -1,0 +1,21 @@
+sources:
+  - name: raw_data
+    database: spotify_db
+    schema: spotify_schema
+    tables:
+      - name: raw_audio_feature
+      - name: raw_artist
+      - name: raw_top_track
+        columns:
+          - name: rank 
+            tests:
+              - dbt_utils.expression_is_true:
+                  expression: "rank between 1 and 200" 
+          - name: peak_rank
+            tests:
+              - dbt_utils.expression_is_true:
+                  expression: "peak_rank between 1 and 200"
+          - name: previous_rank
+            tests:
+              - dbt_utils.expression_is_true:
+                  expression: "previous_rank =-1 or previous_rank between 1 and 200"

@@ -66,12 +66,13 @@ def fetch_spotify_metadata_by_uri(input_path,uri_series,output_dir,date,uri_colu
             
             if response.status_code == 429:
                 retry_after = int(response.headers.get("Retry-After", 5))
-                logger.warning(f"Rate limited. Dang thay doi Key Access!")
+                logger.warning(f"Key {access_token} Rate limited ban phai doi {retry_after}s. Dang thay doi Key Access!")
                 if key ==1:
                     key=2
                     access_token = get_access_token(key)
                 else:
-                    logger.error("Ca 2 deu bi rate limit")
+                    logger.error(f"Key {access_token} Ca 2 deu bi rate limit")
+                    logger.warning(f"Ban phai doi {retry_after}s")
                     time.sleep(retry_after)
                     key=1
                     access_token = get_access_token(key)
@@ -91,6 +92,12 @@ def fetch_spotify_metadata_by_uri(input_path,uri_series,output_dir,date,uri_colu
 
             album    = track.get("album", {})
             ext_ids  = track.get("external_ids", {})
+            artists = track.get("artists",[])
+            artist_id_list = []
+            artist_name_list = []
+            for object in artists:
+                artist_id_list.append(object['id'])
+                artist_name_list.append(object['name'])
 
             track_data_list.append({
                 uri_column_name:      track.get("uri"),
@@ -100,7 +107,9 @@ def fetch_spotify_metadata_by_uri(input_path,uri_series,output_dir,date,uri_colu
                 "isrc":               ext_ids.get("isrc"),
                 "album_type":         album.get("album_type"),  
                 "album_release_date": album.get("release_date"),
-                'album_name': album.get('name')
+                'album_name': album.get('name'),
+                'artist_id': ', '.join(artist_id_list),
+                'artist_name': ','.join(artist_name_list)
             })
 
             logger.info(f"Track {i + 1}/{total_tracks} xong: {track.get('name')}")
@@ -128,7 +137,9 @@ def fetch_spotify_metadata_by_uri(input_path,uri_series,output_dir,date,uri_colu
         "isrc",
         "album_type",
         "album_release_date",
-        'album_name'
+        'album_name',
+        'artist_id',
+        'artist_name'
     ])
 
 def parse_args() -> argparse.Namespace:

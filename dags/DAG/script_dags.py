@@ -38,19 +38,19 @@ def spotify_pipeline():
    def extract_artist(file_track):
       crawl_artist(file_track)
 
-   load_all_data_s3_to_snow_task = BashOperator(
-      task_id = 'load_all_data_s3_to_snow_task',
-      bash_command = "python3 -u /opt/airflow/dags/scripts/load/load_all_data_s3_to_snow.py --date {{ logical_date.strftime('%Y-%m-%d') }}",
-   )
-   load_top_track_to_s3_task = BashOperator(
-      task_id = "load_all_data_to_s3",
-      bash_command = "/opt/airflow/dags/scripts/load/load_all_data_to_s3.sh {{ logical_date.strftime('%Y-%m-%d') }}"
-   )
+   # load_all_data_s3_to_snow_task = BashOperator(
+   #    task_id = 'load_all_data_s3_to_snow_task',
+   #    bash_command = "python3 -u /opt/airflow/dags/scripts/load/load_all_data_s3_to_snow.py --date {{ logical_date.strftime('%Y-%m-%d') }}",
+   # )
+   # load_top_track_to_s3_task = BashOperator(
+   #    task_id = "load_all_data_to_s3",
+   #    bash_command = "/opt/airflow/dags/scripts/load/load_all_data_to_s3.sh {{ logical_date.strftime('%Y-%m-%d') }}"
+   # )
    file_top_track = extract_top_track
-   task_audio_feature = extract_audio_feature(file_top_track.output)
+   # task_audio_feature = extract_audio_feature(file_top_track.output)
    file_track = extract_track_spotify(file_top_track.output)
-   task_artist= extract_artist(file_track)
-   task_artist >> load_top_track_to_s3_task >>load_all_data_s3_to_snow_task
+   # task_artist= extract_artist(file_track)
+   # task_artist >> load_top_track_to_s3_task >>load_all_data_s3_to_snow_task
 
 dag = spotify_pipeline()
    

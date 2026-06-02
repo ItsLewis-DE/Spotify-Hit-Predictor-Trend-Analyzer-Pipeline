@@ -106,6 +106,8 @@ def get_audio_feature(input_file: Path,output_dir: Path):
         time.sleep(2)   
     if list_df:
         df_audio_feature = pd.concat(list_df,ignore_index =True)
+        df_merge = pd.merge(df_rank,df_audio_feature,left_on = 'spotify_id',right_on = 'id')
+        df_merge.to_json(f'{output_dir}/feature-{date}.json',orient='records',lines=True,force_ascii=False,date_format='iso',mode='a')
     else:
         logger.error("There is no data..")
         return
