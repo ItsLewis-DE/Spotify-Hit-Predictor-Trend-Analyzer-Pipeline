@@ -50,7 +50,6 @@ def get_access_token() ->str:
     return response.json()['access_token']
 
 def get_api_audio_feature(spotify_id_string: str,timezone: int,i: int)-> pd.DataFrame:
-    logger.info(f"Extracting {i+6}/200")
     BASE_URL = f'https://spotify-extended-audio-features-api.p.rapidapi.com/v1/audio-features'
     params = {'ids': spotify_id_string}
     if timezone ==1:
@@ -89,6 +88,7 @@ def get_audio_feature(input_file: Path,output_dir: Path):
         id_string = ','.join(spotify_id_string[i : i +5])
         df = get_api_audio_feature(id_string,id_tz,i)
         if df is not None:
+            logger.info(f"Extracting {i+5}/200")
             list_df.append(df)
             i+=5
         else:

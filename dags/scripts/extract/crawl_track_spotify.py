@@ -66,7 +66,7 @@ def fetch_spotify_metadata_by_uri(input_path,uri_series,output_dir,date,uri_colu
             
             if response.status_code == 429:
                 retry_after = int(response.headers.get("Retry-After", 5))
-                print(f"Rate limited. Dang thay doi Key Access!")
+                logger.warning(f"Rate limited. Dang thay doi Key Access!")
                 if key ==1:
                     key=2
                     access_token = get_access_token(key)
@@ -78,7 +78,7 @@ def fetch_spotify_metadata_by_uri(input_path,uri_series,output_dir,date,uri_colu
                 continue
                 
             if response.status_code == 404:
-                print(f"Track {i + 1}/{total_tracks} không tìm thấy: {uri}")
+                logger.warning(f"Track {i + 1}/{total_tracks} không tìm thấy: {uri}")
                 i+=1
                 continue
             
@@ -103,19 +103,19 @@ def fetch_spotify_metadata_by_uri(input_path,uri_series,output_dir,date,uri_colu
                 'album_name': album.get('name')
             })
 
-            print(f"Track {i + 1}/{total_tracks} xong: {track.get('name')}")
+            logger.info(f"Track {i + 1}/{total_tracks} xong: {track.get('name')}")
 
             # autosave mỗi 10 bài
             if (i + 1) % 10 == 0:
                 temp_df = pd.DataFrame(track_data_list)
                 temp_df['fetched_at'] = date
                 temp_df.to_json(output_dir/f'track_info-{date}.json', orient="records", lines=True, force_ascii=False,date_format='iso')
-                print(" -> Đã autosave")
+                logger.info(" -> Đã autosave")
             i+=1
             time.sleep(1)  # Delay giữa các lần gọi API (2s/bài)
 
         except Exception as e:
-            print(f"Lỗi tại track {i + 1} ({uri}): {e}")
+            logger.error(f"Lỗi tại track {i + 1} ({uri}): {e}")
             time.sleep(2)
             i+=1
             continue
@@ -171,4 +171,5 @@ def crawl_track_spotify(file_top_track):
     # lưu JSON để dùng lại, không cần fetch lại lần sau
     metadata_df['fetched_at'] = date
     metadata_df.to_json(args.output_dir / f'track_info-{date}.json', orient="records",lines=True,force_ascii=False,date_format='iso')
+    logger.info("Doi 180s de qua task tiep theo tranh bi rate limit")
     time.sleep(180)
