@@ -20,7 +20,7 @@ echo "Dang dong bo toan bo thu muc data len S3....."
 echo "================================"
 
 # Dong bo toan bo thu muc data len S3
-aws s3 cp /opt/airflow/data/ s3://spotify-stream-bucket/"$DATE"/ --recursive
+aws s3 cp /opt/airflow/data/ s3://spotify-stream-bucket/"$DATE"/ --recursive --exclude "*(*)*"
 
 if [ $? -eq 0 ]; then
     echo "==> Upload tat ca cac file thanh cong!!"

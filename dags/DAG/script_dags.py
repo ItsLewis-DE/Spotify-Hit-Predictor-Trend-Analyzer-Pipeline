@@ -38,24 +38,26 @@ def spotify_pipeline():
    # def extract_artist(file_track):
    #    crawl_artist(file_track)
 
-   # load_all_data_s3_to_snow_task = BashOperator(
-   #    task_id = 'load_all_data_s3_to_snow_task',
-   #    bash_command = "python3 -u /opt/airflow/dags/scripts/load/load_all_data_s3_to_snow.py --date 2026-05-28",
-   # )
+   load_all_data_s3_to_snow_task = BashOperator(
+      task_id = 'load_all_data_s3_to_snow_task',
+      bash_command = "python3 -u /opt/airflow/dags/scripts/load/load_all_data_s3_to_snow.py --date 2026-05-28",
+   )
+
    # load_top_track_to_s3_task = BashOperator(
    #    task_id = "load_all_data_to_s3",
    #    bash_command = "/opt/airflow/dags/scripts/load/load_all_data_to_s3.sh {{ logical_date.strftime('%Y-%m-%d') }}"
    # )
+
+   dbt_run = BashOperator(
+   task_id = 'dbt_run',
+   bash_command = 'cd /opt/airflow/dbt && { [ -d dbt_packages ] || dbt deps --profiles-dir /opt/airflow/dbt; } && dbt run --select staging --profiles-dir /opt/airflow/dbt && dbt snapshot --profiles-dir /opt/airflow/dbt && dbt run --select marts --profiles-dir /opt/airflow/dbt'
+   )
    # task_audio_feature = extract_audio_feature(extract_top_track.output)
    # file_track = extract_track_spotify(extract_top_track.output)
 
    # task_artist= extract_artist(file_track)
 
-   # task_audio_feature >> file_track >> task_artist >> load_top_track_to_s3_task >> 
-   # load_all_data_s3_to_snow_task
-   dbt_run = BashOperator(
-      task_id = 'dbt_run',
-      bash_command = 'cd /opt/airflow/dbt && dbt deps --profiles-dir /opt/airflow/dbt && dbt run --profiles-dir /opt/airflow/dbt'
-      )
-   dbt_run
+   # task_audio_feature >> file_track >> task_artist >> load_top_track_to_s3_task >> load_all_data_s3_to_snow_task >> 
+   load_all_data_s3_to_snow_task >> dbt_run
+
 dag = spotify_pipeline()

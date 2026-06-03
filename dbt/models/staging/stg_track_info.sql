@@ -5,7 +5,7 @@ WITH raw_track_info AS(
 
 SELECT raw_data:track_id::string AS track_id,
     REGEXP_REPLACE(raw_data:track_name::string,'\\s*\\((feat|ft|WITH).*\\)','',1,0,'i') as track_name,
-    SPLIT(raw_data:artist_id::string,',') AS artist_id,
+    SPLIT(raw_data:artist_id::string,', ') AS artist_id,
     raw_data:popularity::int AS popularity,
     raw_data:duration_ms::bigint AS duration_ms,
     raw_data:explicit::boolean AS explicit,
