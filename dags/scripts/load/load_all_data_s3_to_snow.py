@@ -122,7 +122,8 @@ def setup_snowflake(date:None):
                 peak_rank INT,
                 previous_rank INT,
                 weeks_on_chart INT,
-                streams INT
+                streams INT,
+                fetched_date DATE
             )
             """
         ]
@@ -137,7 +138,13 @@ def setup_snowflake(date:None):
             f"COPY INTO spotify_schema.raw_artist FROM @s3/{date}/artist/ FILE_FORMAT=spotify_json_format PATTERN='.*.json' ON_ERROR='CONTINUE'",
             f"COPY INTO spotify_schema.raw_audio_feature FROM @s3/{date}/audio_feature/ FILE_FORMAT=spotify_json_format PATTERN='.*.json' ON_ERROR='CONTINUE'",
             f"COPY INTO spotify_schema.raw_track_info FROM @s3/{date}/track_info/ FILE_FORMAT=spotify_json_format PATTERN='.*.json' ON_ERROR='CONTINUE'",
-            f"COPY INTO spotify_schema.raw_top_track FROM @s3/{date}/top_track/ FILE_FORMAT=spotify_csv_format PATTERN='.*.csv' ON_ERROR='CONTINUE'"
+            f"""COPY INTO spotify_schema.raw_top_track (rank, uri, artist_names, track_name, source, peak_rank, previous_rank, weeks_on_chart, streams, fetched_date)
+            FROM (
+                SELECT $1, $2, $3, $4, $5, $6, $7, $8, $9,
+                    TO_DATE(SPLIT_PART(METADATA$FILENAME, '/', 1), 'YYYY-MM-DD')
+                FROM @s3/{date}/top_track/
+            )
+            FILE_FORMAT=spotify_csv_format PATTERN='.*.csv' ON_ERROR='CONTINUE'"""
         ]
 
         for query in copy_queries:

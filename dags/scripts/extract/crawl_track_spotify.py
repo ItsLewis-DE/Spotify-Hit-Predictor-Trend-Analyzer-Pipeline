@@ -48,8 +48,14 @@ def get_api_track_info(spotify_id_string: str,timezone: int)-> pd.DataFrame:
         X_RapidAPI_Key = os.getenv('X_RapidAPI_Key_2')
     elif timezone==3:
         X_RapidAPI_Key = os.getenv('X_RapidAPI_Key_3')
-    else:
+    elif timezone==4:
         X_RapidAPI_Key = os.getenv('X_RapidAPI_Key_4')
+    elif timezone==5:
+        X_RapidAPI_Key = os.getenv('X_RapidAPI_Key_5')
+    elif timezone==6:
+        X_RapidAPI_Key = os.getenv('X_RapidAPI_Key_6')
+    else:
+        X_RapidAPI_Key = os.getenv('X_RapidAPI_Key_7')
     headers = {
         "X-RapidAPI-Key": X_RapidAPI_Key, 
         "X-RapidAPI-Host": "spotify-extended-audio-features-api.p.rapidapi.com" 
@@ -114,7 +120,7 @@ def get_track_info(input_file: Path,output_dir: Path):
     last_id = None
     if file_path.exists():
         try:
-            old_df = pd.read_csv(file_path)
+            old_df = pd.read_json(file_path,lines=True)
             if not old_df.empty:
                 last_uri = old_df['uri'].iloc[-1]
                 last_id = last_uri.split(':')[-1]
@@ -131,7 +137,7 @@ def get_track_info(input_file: Path,output_dir: Path):
         pass
     spotify_id_string = df_rank['spotify_id'].to_list()
     list_df = []
-    timezone = [1,2,3,4]
+    timezone = [1,2,3,4,5,6,7]
     date = get_chart_date(input_file)
     id_tz=1
     output_dir.mkdir(parents=True,exist_ok = True)

@@ -49,8 +49,14 @@ def get_api_audio_feature(spotify_id_string: str,timezone: int,i: int)-> pd.Data
         X_RapidAPI_Key = os.getenv('X_RapidAPI_Key_2')
     elif timezone==3:
         X_RapidAPI_Key = os.getenv('X_RapidAPI_Key_3')
-    else:
+    elif timezone==4:
         X_RapidAPI_Key = os.getenv('X_RapidAPI_Key_4')
+    elif timezone==5:
+        X_RapidAPI_Key = os.getenv('X_RapidAPI_Key_5')
+    elif timezone==6:
+        X_RapidAPI_Key = os.getenv('X_RapidAPI_Key_6')
+    else:
+        X_RapidAPI_Key = os.getenv('X_RapidAPI_Key_7')
     headers = {
         "X-RapidAPI-Key": X_RapidAPI_Key, 
         "X-RapidAPI-Host": "spotify-extended-audio-features-api.p.rapidapi.com" 
@@ -90,7 +96,7 @@ def get_audio_feature(input_file: Path,output_dir: Path):
         pass
     spotify_id_string = df_rank['spotify_id'].to_list()
     list_df = []
-    timezone = [1,2,3,4]
+    timezone = [1,2,3,4,5,6,7]
     date = get_chart_date(input_file)
     id_tz=1
     output_dir.mkdir(parents=True,exist_ok = True)
