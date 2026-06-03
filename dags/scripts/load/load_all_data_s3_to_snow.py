@@ -4,6 +4,7 @@ import argparse
 import snowflake.connector
 from dotenv import load_dotenv
 import sys
+from datetime import datetime, timedelta
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s'
@@ -37,6 +38,12 @@ def setup_snowflake(date:None):
     if date is None:
         logger.error("Loi. Ban chua truyen ngay thang vao!")
         sys.exit(1)
+
+    dt = datetime.strptime(date, "%Y-%m-%d")
+    offset = (dt.weekday() + 4) % 7
+    date = (dt - timedelta(days=offset)).strftime("%Y-%m-%d")
+    logger.info("Converted to nearest Thursday: %s", date)
+
     # Kết nối với Snowflake bằng role ACCOUNTADMIN để tạo DB, Role và cấp quyền
     logger.info("Đang kết nối vào Snowflake với role ACCOUNTADMIN...")
     try:
