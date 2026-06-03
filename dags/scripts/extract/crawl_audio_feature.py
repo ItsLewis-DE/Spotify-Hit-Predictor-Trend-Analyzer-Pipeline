@@ -92,6 +92,8 @@ def get_audio_feature(input_file: Path,output_dir: Path):
     if last_id and last_id in df_rank['spotify_id'].values:
         last_index = df_rank[df_rank['spotify_id'] == last_id].index[0]
         df_rank = df_rank.iloc[last_index+1:]
+        if df_rank.empty:
+            return file_path
     else:
         pass
     spotify_id_string = df_rank['spotify_id'].to_list()
@@ -115,6 +117,7 @@ def get_audio_feature(input_file: Path,output_dir: Path):
                 logger.info("Dang luu file....")
                 df_audio_feature = pd.concat(list_df,ignore_index =True)
                 df_merge = pd.merge(df_rank,df_audio_feature,left_on = 'spotify_id',right_on = 'id')
+                df_merge['fetched_at'] = date
                 df_merge.to_json(f'{output_dir}/feature-{date}.json',orient='records',lines=True,force_ascii=False,date_format='iso',mode='a')
                 # clear list_df sau khi save de khong luu trung
                 list_df = []
@@ -125,6 +128,7 @@ def get_audio_feature(input_file: Path,output_dir: Path):
     if list_df:
         df_audio_feature = pd.concat(list_df,ignore_index =True)
         df_merge = pd.merge(df_rank,df_audio_feature,left_on = 'spotify_id',right_on = 'id')
+        df_merge['fetched_at'] = date
         df_merge.to_json(f'{output_dir}/feature-{date}.json',orient='records',lines=True,force_ascii=False,date_format='iso',mode='a')
     else:
         if not list_df and i == 0:

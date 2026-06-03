@@ -19,6 +19,7 @@ SELECT tt.rank,
     ti.artist_id,
     tt.source,
     tt.streams,
+    tt.day,
     tt.week_of_month,
     tt.month,
     tt.year

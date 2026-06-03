@@ -10,5 +10,6 @@ SELECT raw_data:track_id::string AS track_id,
     raw_data:duration_ms::bigint AS duration_ms,
     raw_data:explicit::boolean AS explicit,
     raw_data:album_name::string AS album_name,
-    raw_data:album_release_date::date AS album_release_date
+    raw_data:album_release_date::date AS album_release_date,
+    raw_data:fetched_at::timestamp_ntz AS fetched_at
 FROM raw_track_info

@@ -133,6 +133,8 @@ def get_track_info(input_file: Path,output_dir: Path):
     if last_id and last_id in df_rank['spotify_id'].values:
         last_index = df_rank[df_rank['spotify_id'] == last_id].index[0]
         df_rank = df_rank.iloc[last_index+1:]
+        if df_rank.empty:
+            return file_path
     else:
         pass
     spotify_id_string = df_rank['spotify_id'].to_list()

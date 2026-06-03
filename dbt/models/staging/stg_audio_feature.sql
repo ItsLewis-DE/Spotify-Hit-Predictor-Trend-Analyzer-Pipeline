@@ -14,5 +14,6 @@ SELECT raw_data:id::string as track_id,
     raw_data:speechiness::float as speechiness,
     raw_data:tempo::float as tempo,
     raw_data:time_signature::int as time_signature,
-    raw_data:valence::float as valence
+    raw_data:valence::float as valence,
+    raw_data:fetched_at::timestamp_ntz as fetched_at
 FROM raw_audio_feature

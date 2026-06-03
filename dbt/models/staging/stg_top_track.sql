@@ -13,6 +13,7 @@ SELECT "RANK",
     weeks_on_chart,
     streams,
     CEIL(DAY(fetched_date) / 7.0) AS WEEK_OF_MONTH,
+    DAY(fetched_date) AS DAY,
     MONTH(fetched_date) AS MONTH,
     YEAR(fetched_date) AS YEAR
 FROM raw_top_track

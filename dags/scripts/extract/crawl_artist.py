@@ -115,6 +115,8 @@ def get_artist_data(input_file: Path,output_dir: Path):
     if last_id and last_id in all_artist_ids:
         last_index = all_artist_ids.index(last_id)
         all_artist_ids = all_artist_ids[last_index+1:]
+        if not all_artist_ids:
+            return file_path
     else:
         pass
 
