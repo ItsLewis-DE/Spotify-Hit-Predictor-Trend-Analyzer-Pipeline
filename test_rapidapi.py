@@ -5,7 +5,7 @@ import json
 
 load_dotenv()
 
-key = os.getenv('X_RapidAPI_Key_7')
+key = os.getenv('X_RapidAPI_Key_6')
 if not key:
     print("Error: X_RapidAPI_Key_1 not found in .env")
     exit(1)
