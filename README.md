@@ -26,8 +26,6 @@ An end-to-end **ELT data pipeline** combined with **Machine Learning** that auto
 
 ## 🧠 Machine Learning: Hit Predictor
 
-Besides the robust data pipeline, this project includes a Machine Learning component (`dags/scripts/ml/ML.ipynb`) aimed at **Early Trajectory Prediction**.
-
 ### Bài toán dự đoán (The Problem)
 **Câu hỏi:** Sau khi bài hát lọt chart trong tuần đầu tiên, liệu bài hát có đạt được **Top 10** vào những tuần kế tiếp hay không?
 
