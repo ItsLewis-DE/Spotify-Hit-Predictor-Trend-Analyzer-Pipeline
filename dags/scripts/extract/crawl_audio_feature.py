@@ -67,7 +67,8 @@ def get_api_audio_feature(spotify_id_string: str,timezone: int,i: int)-> pd.Data
         return None
     if response.status_code == 200:
         logger.info("Extracting data audio feature....")
-        df = pd.DataFrame(response.json()['audio_features'])
+        features = [f for f in response.json().get('audio_features', []) if f is not None]
+        df = pd.DataFrame(features) if features else pd.DataFrame()
         return df
     else:
         logger.error(f"API error: {response.status_code} - {response.text[:200]}")

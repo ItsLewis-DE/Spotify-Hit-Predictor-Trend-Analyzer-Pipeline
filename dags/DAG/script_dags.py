@@ -14,8 +14,9 @@ default_args = {
    dag_id='spotify_pipeline',
    default_args = default_args,
    schedule='0 0 * * 6',
-   start_date = pendulum.datetime(2026,4,30,tz='Asia/Ho_Chi_Minh'),
+   start_date = pendulum.datetime(2025,4,30,tz='Asia/Ho_Chi_Minh'),
    catchup=False,
+   max_active_runs=1,
    tags=['spotify','music']
  )
 
