@@ -1,6 +1,6 @@
 # 🎵 Spotify Hit Predictor & Trend Analyzer Pipeline
 
-An end-to-end **ELT data pipeline** that automatically collects, stores, and transforms Spotify chart data (Regional Vietnam Weekly) for music trend analysis and hit prediction. Orchestrated with **Apache Airflow**, transformed with **dbt**, and warehoused in **Snowflake**.
+An end-to-end **ELT data pipeline** combined with **Machine Learning** that automatically collects, stores, transforms Spotify chart data (Regional Vietnam Weekly), and predicts whether a song will become a Top 10 hit. Orchestrated with **Apache Airflow**, transformed with **dbt**, warehoused in **Snowflake**, and analyzed using **Python (XGBoost/LightGBM)**.
 
 ---
 
@@ -13,6 +13,7 @@ An end-to-end **ELT data pipeline** that automatically collects, stores, and tra
 | **Data Lake** | ![S3](https://img.shields.io/badge/Amazon_S3-569A31?logo=amazons3&logoColor=white) |
 | **Data Warehouse** | ![Snowflake](https://img.shields.io/badge/Snowflake-29B5E8?logo=snowflake&logoColor=white) |
 | **Transform** | ![dbt](https://img.shields.io/badge/dbt-1.11-FF694B?logo=dbt&logoColor=white) |
+| **Machine Learning** | ![Scikit-learn](https://img.shields.io/badge/scikit--learn-F7931E?logo=scikit-learn&logoColor=white) ![XGBoost](https://img.shields.io/badge/XGBoost-172434?logo=xgboost&logoColor=white) |
 | **Containerization** | ![Docker](https://img.shields.io/badge/Docker-2496ED?logo=docker&logoColor=white) |
 | **API** | ![Spotify](https://img.shields.io/badge/Spotify_API-1DB954?logo=spotify&logoColor=white) ![RapidAPI](https://img.shields.io/badge/RapidAPI-0055DA?logo=rapidapi&logoColor=white) |
 
@@ -20,36 +21,31 @@ An end-to-end **ELT data pipeline** that automatically collects, stores, and tra
 
 ## 🏗️ Architecture
 
-```mermaid
-flowchart LR
-    subgraph Extract
-        A[🌐 Spotify Charts\nSelenium] --> D[📁 Local CSV/JSON]
-        B[🎵 Spotify Web API\nTrack Info & Artist] --> D
-        C[🎧 RapidAPI\nAudio Features] --> D
-    end
+![Architecture](image/architerture.png)
+---
 
-    subgraph Load
-        D -->|aws s3 cp| E[☁️ Amazon S3\nData Lake]
-        E -->|COPY INTO| F[❄️ Snowflake\nRaw Tables]
-    end
+## 🧠 Machine Learning: Hit Predictor
 
-    subgraph Transform
-        F -->|dbt run --select staging| G[📋 Staging Views]
-        G -->|dbt snapshot| H[📸 SCD2 Snapshots]
-        H -->|dbt run --select marts| I[⭐ Fact & Dim Tables]
-    end
+Besides the robust data pipeline, this project includes a Machine Learning component (`dags/scripts/ml/ML.ipynb`) aimed at **Early Trajectory Prediction**.
 
-    subgraph Orchestration
-        J[⏰ Apache Airflow] -.->|schedules & monitors| Extract
-        J -.-> Load
-        J -.-> Transform
-    end
+### Bài toán dự đoán (The Problem)
+**Câu hỏi:** Sau khi bài hát lọt chart trong tuần đầu tiên, liệu bài hát có đạt được **Top 10** vào những tuần kế tiếp hay không?
 
-    style Extract fill:#1DB954,color:#fff
-    style Load fill:#FF9900,color:#fff
-    style Transform fill:#29B5E8,color:#fff
-    style Orchestration fill:#017CEE,color:#fff
-```
+### Phương pháp tiếp cận (Approach)
+1. **Dữ liệu huấn luyện:** Lấy từ các bảng Fact và Dimension trong Data Warehouse (Snowflake) sau khi dbt đã transform. Dữ liệu sạch, được join hoàn chỉnh giữa thông tin track, audio features và artist popularity.
+2. **Feature Engineering:**
+   - **Audio Features:** Danceability, energy, valence, acousticness, v.v.
+   - **Artist Metrics:** Số lượng followers, popularity trung bình/tối đa của nghệ sĩ (hỗ trợ tốt cho collab tracks).
+   - **Interaction Features:** Tính toán tỷ lệ `momentum_ratio`, `stream_efficiency`, `followers_per_rank` để đánh giá tiềm năng bứt phá của bài hát.
+3. **Mô hình hóa (Modeling):**
+   - Xử lý mất cân bằng dữ liệu (Imbalanced data) bằng **SMOTE**.
+   - Đánh giá bằng **Stratified 5-Fold Cross-Validation**.
+   - So sánh 3 mô hình Gradient Boosting và Ensemble hàng đầu: **RandomForest**, **XGBoost**, và **LightGBM**.
+   - Hyperparameter Tuning với **GridSearchCV**.
+
+### Kết luận & Insights
+- Các mô hình (đặc biệt là XGBoost) mang lại kết quả F1 Score ổn định.
+- **Top Predictors:** Vị trí debut (`debut_rank`), số lượt stream tuần đầu (`debut_streams`), và sức ảnh hưởng của nghệ sĩ (`artist_popularity`) là những tín hiệu mạnh nhất dự đoán việc lọt Top 10. Các đặc trưng âm thanh (Audio Features) đóng vai trò bổ sung nhưng không quyết định xu hướng viral bằng độ nổi tiếng sẵn có của ca sĩ.
 
 ---
 
@@ -127,7 +123,7 @@ erDiagram
 
 The dbt project transforms raw data through 3 layers:
 
-```
+```text
 Raw Tables (Snowflake)
   └── Sources (sources.yml)
         ├── stg_top_track        ─────────────────────────────────► fact_top_track
@@ -152,33 +148,17 @@ Raw Tables (Snowflake)
 │   ├── DAG/
 │   │   └── script_dags.py          # Airflow DAG definition
 │   └── scripts/
-│       ├── extract/
-│       │   ├── crawl_top_track.py   # Selenium: scrape Spotify Charts (VN Weekly)
-│       │   ├── crawl_track_spotify.py  # API: fetch track info (name, album, artists)
-│       │   ├── crawl_audio_feature.py  # RapidAPI: fetch audio features
-│       │   └── crawl_artist.py      # API: fetch artist details (followers, genres)
-│       └── load/
-│           ├── load_all_data_to_s3.sh      # Upload local files to S3
-│           └── load_all_data_s3_to_snow.py # COPY INTO from S3 to Snowflake
-├── dbt/
-│   ├── models/
-│   │   ├── sources/                 # Source definitions (sources.yml)
-│   │   ├── staging/                 # Staging views (stg_*.sql)
-│   │   └── marts/                   # Fact & Dim tables
-│   ├── snapshots/                   # SCD2 snapshot models
-│   ├── macros/                      # Reusable SQL macros (e.g., flatten_array)
-│   ├── dbt_project.yml              # dbt project configuration
-│   ├── profiles.yml                 # Snowflake connection profile
-│   └── packages.yml                 # dbt package dependencies
-├── data/                            # Temporary local data storage (gitignored)
-├── config/                          # Airflow configuration files
-├── plugins/                         # Custom Airflow plugins
-├── logs/                            # Airflow logs (gitignored)
-├── chrome_profile/                  # Chrome session for Selenium login
-├── Dockerfile                       # Custom Airflow image with dependencies
-├── docker-compose.yaml              # Full Airflow infrastructure
-├── pyproject.toml                   # Python dependencies
-├── .env.example                     # Environment variable template
+│       ├── extract/                # Selenium & API Crawlers
+│       ├── load/                   # S3 & Snowflake Loading Scripts
+│       └── ml/
+│           └── ML.ipynb            # Machine Learning Predictive Model
+├── dbt/                            # dbt transformation models
+├── image/                          # Architecture & DAG diagrams
+├── chrome_profile/                 # Chrome session for Selenium login
+├── Dockerfile                      # Custom Airflow image with dependencies
+├── docker-compose.yaml             # Full Airflow infrastructure
+├── pyproject.toml                  # Python dependencies
+├── .env.example                    # Environment variable template
 └── README.md
 ```
 
@@ -197,7 +177,9 @@ Raw Tables (Snowflake)
 
 ---
 
-## 🚀 Getting Started
+## 🚀 Hướng Dẫn Khởi Chạy (Getting Started)
+
+Vui lòng làm theo các bước dưới đây theo thứ tự để thiết lập và chạy toàn bộ dự án.
 
 ### 1. Clone the Repository
 
@@ -206,88 +188,93 @@ git clone https://github.com/ItsLewis-DE/Spotify-Hit-Predictor-Trend-Analyzer-Pi
 cd Spotify-Hit-Predictor-Trend-Analyzer-Pipeline
 ```
 
-### 2. Configure Environment Variables
+### 2. Thiết lập Environment Variables (.env)
+
+Bạn cần tạo file `.env` từ file mẫu và điền đầy đủ các thông tin xác thực.
 
 ```bash
 cp .env.example .env
 ```
 
-Edit `.env` and fill in **all** required values:
+Mở file `.env` và điền **tất cả** các giá trị cần thiết:
+- `SPOTIFY_CLIENT_ID` / `SPOTIFY_CLIENT_SECRET` (Từ Spotify Developer Dashboard)
+- `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` (Từ AWS IAM)
+- `SNOWFLAKE_ACCOUNT` / `SNOWFLAKE_USER` / `SNOWFLAKE_PASSWORD`
+- Các key của `RapidAPI`
+- Tạo `AIRFLOW_FERNET_KEY` và `AIRFLOW_WEBSERVER_SECRET_KEY` bằng lệnh Python được gợi ý ngay trong file `.env`.
 
-| Variable | Description |
-|----------|-------------|
-| `SPOTIFY_CLIENT_ID` / `SPOTIFY_CLIENT_SECRET` | From Spotify Developer Dashboard |
-| `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` | From AWS IAM Console |
-| `SNOWFLAKE_ACCOUNT` / `SNOWFLAKE_USER` / `SNOWFLAKE_PASSWORD` | Your Snowflake credentials |
-| `X-RapidAPI-Key-1` to `X-RapidAPI-Key-4` | RapidAPI keys for rate-limit rotation |
-| `AIRFLOW_FERNET_KEY` | Generate: `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"` |
-| `AIRFLOW_WEBSERVER_SECRET_KEY` | Generate: `python -c "import secrets; print(secrets.token_hex(32))"` |
+### 3. Đăng nhập Spotify Charts (Chỉ chạy LẦN ĐẦU)
 
-### 3. Spotify Charts Login (First Time Only)
-
-The crawler needs an authenticated session to download Spotify Charts data. Run this once manually (with a visible browser) to save cookies:
+Crawler cần một session đã đăng nhập để tải dữ liệu Spotify Charts (bằng Selenium). Bạn cần chạy thủ công đoạn script sau để hiện trình duyệt Chrome, sau đó đăng nhập bằng tay. Cookie sẽ được lưu lại cho Airflow sử dụng sau này.
 
 ```bash
+# Tạo môi trường ảo và cài đặt thư viện
 python -m venv .venv
-source .venv/bin/activate  # Windows: .venv\Scripts\activate
+source .venv/bin/activate  # Trên Windows: .venv\Scripts\activate
 pip install -r pyproject.toml
 
-# Opens Chrome — log in manually. Cookies will be saved to spotify_cookies.json
+# Chạy lệnh đăng nhập. Trình duyệt Chrome sẽ mở ra, hãy tự đăng nhập Spotify.
+# Sau khi đăng nhập thành công, Cookie sẽ tự động được lưu.
 python dags/scripts/extract/crawl_top_track.py --login
 ```
 
-### 4. Start the Airflow Stack
+### 4. Khởi động hệ thống Airflow (Docker Compose)
+
+> **Lưu ý quan trọng:** Nếu bạn gặp lỗi `pull access denied for spotify-airflow...` thì là do image chưa được build. Quá trình build có chứa lệnh `pip install` nên sẽ mất vài phút. **Hãy kiên nhẫn đợi lệnh chạy xong, đừng nhấn `Ctrl+C`.**
 
 ```bash
-# Initialize database & create admin user (FIRST TIME ONLY)
+# BƯỚC 4.1: Build custom Airflow image (cài đặt Selenium, dbt, Snowflake connector...)
+docker compose build
+
+# BƯỚC 4.2: Khởi tạo database & tạo tài khoản admin cho Airflow (CHỈ CHẠY LẦN ĐẦU TIÊN)
 docker compose up airflow-init
 
-# Start all services in detached mode
+# BƯỚC 4.3: Chạy tất cả các dịch vụ (Webserver, Scheduler, Postgres, Selenium...) ở chế độ background
 docker compose up -d
 ```
 
-### 5. Access the Airflow UI
+### 5. Truy cập Airflow UI
 
-Open your browser at **http://localhost:8080**
+Mở trình duyệt và truy cập: **http://localhost:8080**
 
 | Field | Default Value |
 |-------|--------------|
 | Username | `airflow` |
-| Password | Value of `_AIRFLOW_WWW_USER_PASSWORD` in `.env` |
+| Password | Giá trị của biến `_AIRFLOW_WWW_USER_PASSWORD` trong file `.env` (mặc định là `airflow`) |
 
-Unpause the `spotify_pipeline` DAG to start the automated pipeline.
+Vào giao diện, bật (unpause) DAG `spotify_pipeline` để kích hoạt quá trình tự động hóa.
 
 ---
 
 ## ⚙️ Pipeline DAG
 
-The DAG `spotify_pipeline` runs on a **weekly schedule** (every Saturday at midnight) and executes the following task chain:
+Dưới đây là luồng thực thi (Task Flow) của Airflow DAG. DAG được đặt lịch chạy **hàng tuần** (Vào nửa đêm Thứ Bảy).
 
-```
-extract_top_track → [extract_audio_feature, extract_track_spotify] → extract_artist
-    → load_all_data_to_s3 → load_all_data_s3_to_snow → dbt_run
-```
+![Airflow DAG](image/DAG.png)
 
-The `dbt_run` task internally executes:
-1. `dbt deps` — Install packages (only if `dbt_packages/` doesn't exist)
-2. `dbt run --select staging` — Create/refresh staging views
-3. `dbt snapshot` — Capture SCD2 changes
-4. `dbt run --select marts` — Build Fact & Dimension tables
+Trình tự thực thi:
+1. `extract_top_track` (Selenium scrape chart)
+2. Song song: `extract_audio_feature` & `extract_track_spotify`
+3. `extract_artist`
+4. `load_all_data_to_s3`
+5. `load_all_data_s3_to_snow`
+6. `dbt_run` (Bao gồm Staging -> Snapshot SCD2 -> Marts)
+7. `unload_task`
 
 ---
 
 ## 🔧 Useful Docker Commands
 
 ```bash
-# Stop and remove all containers
+# Dừng và xóa tất cả containers
 docker compose down
 
-# View scheduler logs (for debugging DAG failures)
+# Xem log của Scheduler (Rất hữu ích khi cần debug lỗi DAG)
 docker compose logs -f airflow-scheduler
 
-# Open a bash shell inside the Airflow container
+# Mở bash terminal vào bên trong Airflow container
 docker compose run --rm airflow-cli bash
 
-# Rebuild the image after changing Dockerfile or dependencies
+# Build lại image nếu bạn thay đổi file Dockerfile hoặc thêm package vào pyproject.toml
 docker compose build --no-cache
 ```
